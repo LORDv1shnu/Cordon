@@ -18,6 +18,9 @@ enum Commands {
         /// Command to execute
         #[arg(last = true, required = true)]
         cmd: Vec<String>,
+        /// Allow network access inside sandbox
+        #[arg(long, default_value_t = false)]
+        network: bool,
     },
 }
 
@@ -25,13 +28,13 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { cmd } => run_sandboxed(cmd)?,
+        Commands::Run { cmd, network } => run_sandboxed(cmd, network)?,
     }
 
     Ok(())
 }
 
-fn run_sandboxed(cmd: Vec<String>) -> Result<()> {
+fn run_sandboxed(cmd: Vec<String>, network: bool) -> Result<()> {
     println!("🔒 Running inside sandbox...");
     
     // Get current working directory
@@ -48,11 +51,17 @@ fn run_sandboxed(cmd: Vec<String>) -> Result<()> {
     
     let mut bwrap = Command::new("bwrap");
     bwrap
-        .arg("--unshare-all")
+        // .arg("--unshare-all")
+        .arg("--unshare-user")
+        .arg("--unshare-ipc")
+        .arg("--unshare-pid")
+        .arg("--unshare-uts")
+        .arg("--unshare-cgroup")
         .arg("--ro-bind").arg("/usr").arg("/usr")
-        .arg("--ro-bind").arg("/bin").arg("/bin")
-        .arg("--ro-bind").arg("/lib").arg("/lib")
-        .arg("--ro-bind").arg("/lib64").arg("/lib64")
+        .arg("--symlink").arg("usr/bin").arg("/bin")
+        .arg("--symlink").arg("usr/lib").arg("/lib")
+        .arg("--symlink").arg("usr/lib64").arg("/lib64")
+        .arg("--symlink").arg("usr/sbin").arg("/sbin")
         .arg("--tmpfs").arg("/tmp")
         .arg("--proc").arg("/proc")
         .arg("--dev").arg("/dev")
@@ -65,6 +74,18 @@ fn run_sandboxed(cmd: Vec<String>) -> Result<()> {
         let src_path = src_dir.to_str().unwrap();
         bwrap
             .arg("--ro-bind").arg(src_path).arg(src_path);
+    }
+    
+    // Only unshare network if network is disabled
+    if !network {
+        bwrap.arg("--unshare-net");
+        println!("🌐 Network: disabled");
+    } else {
+        // Need /etc/resolv.conf for DNS resolution (SENSITIVE!)
+        bwrap
+            .arg("--ro-bind").arg("/etc").arg("/etc") 
+            .arg("--ro-bind").arg("/run").arg("/run");
+        println!("🌐 Network: enabled");
     }
 
     // Set working directory inside sandbox
