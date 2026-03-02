@@ -36,13 +36,13 @@ pub enum Commands {
         network: bool,
     },
 
-    // Phase 2: scan the system and generate ~/.config/cordon/system.toml
-    // Scan {},
+    /// Scan the system and generate ~/.config/cordon/system.toml.
+    Scan {},
 
-    // Phase 2: add a path to the per-project cordon.toml (user.toml)
-    // Add {
-    //     path: String,
-    //     #[arg(long, default_value = "ro")]
-    //     mode: String,
-    // },
+    /// Add a path to the per-project cordon.toml (user.toml).
+    Add {
+        path: String,
+        #[arg(long, default_value = "ro")]
+        mode: String,
+    },
 }
