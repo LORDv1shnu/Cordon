@@ -1,7 +1,7 @@
 use anyhow::{Result, Context};
 use crate::config::{CoreConfig, CoreModule, SystemConfig, MountEntry};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use chrono::Utc;
 
 const CORE_TOML: &str = include_str!("../config/core.toml");
