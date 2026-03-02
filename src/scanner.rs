@@ -28,6 +28,31 @@ pub fn run_scan() -> Result<()> {
     Ok(())
 }
 
+fn check_foreign_entries(config: &mut SystemConfig, core: &CoreConfig) -> Result<bool> {
+    let mut modified = false;
+    let mut to_remove = Vec::new();
+
+    for (i, mount) in config.mounts.iter().enumerate() {
+        if !core.modules.iter().any(|m| m.name == mount.name) {
+            println!("🚨 FOREIGN ENTRY detected: {} -> {}", mount.name, mount.src);
+            println!("This entry does not belong to core modules.");
+            println!("[D] Discard - remove from system.toml");
+            println!("[M] Move    - move to user.toml instead");
+            
+            // For now, default to Discard in non-interactive environment
+            // In a real TUI we would prompt here.
+            to_remove.push(i);
+            modified = true;
+        }
+    }
+
+    for i in to_remove.iter().rev() {
+        config.mounts.remove(*i);
+    }
+
+    Ok(modified)
+}
+
 fn scan_module(module: &CoreModule) -> Result<Option<MountEntry>> {
     let path = Path::new(&module.default_dir);
     if !path.exists() {
@@ -81,13 +106,29 @@ pub fn pre_flight_check() -> Result<SystemConfig> {
         run_scan()?;
     }
     
-    let config = crate::config::load_system_config().context("Failed to load system.toml")?;
-    
-    // Simple version check
+    let mut config = crate::config::load_system_config().context("Failed to load system.toml")?;
+    let core: CoreConfig = toml::from_str(CORE_TOML).context("Failed to parse embedded core.toml")?;
+
+    // Version check
     if config.cordon_version != env!("CARGO_PKG_VERSION") {
         println!("🔄 Cordon version mismatch, re-scanning...");
         run_scan()?;
         return crate::config::load_system_config().context("Failed to reload system.toml");
+    }
+
+    // Foreign entry check
+    if check_foreign_entries(&mut config, &core)? {
+        crate::config::save_system_config(&config)?;
+    }
+
+    // Integrity check
+    for mount in &config.mounts {
+        let path = Path::new(&mount.dest);
+        if !path.exists() {
+            println!("❌ Integrity failure: {} missing at {}", mount.name, mount.dest);
+            run_scan()?;
+            return crate::config::load_system_config().context("Failed to reload system.toml");
+        }
     }
     
     Ok(config)
