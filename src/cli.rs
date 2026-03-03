@@ -41,8 +41,8 @@ pub enum Commands {
         dry_run: bool,
     },
 
-    // Phase 2: scan the system and generate ~/.config/cordon/system.toml
-    // Scan {},
+    /// Scan the system and generate ~/.config/cordon/system.toml.
+    Scan {},
 
     /// Add a custom path to the per-project cordon.toml (user.toml).
     /// [PHASE 2 - Planned]

@@ -1,0 +1,62 @@
+[[module]]
+name           = "usr"
+description    = "Entire /usr tree (binaries and libraries)"
+default_dir    = "/usr"
+required_files = ["bin"]
+functionality  = "Core system runtime"
+mode           = "ro"
+when           = "always"
+
+[[module]]
+name           = "bin"
+description    = "Binary symlink for modern Linux distros"
+default_dir    = "/bin"
+required_files = ["cat"]
+functionality  = "Required for basic command line tools"
+mode           = "ro"
+when           = "always"
+
+[[module]]
+name           = "lib"
+description    = "Library symlink for modern Linux distros"
+default_dir    = "/lib"
+required_files = ["ld-linux-x86-64.so.2"]
+functionality  = "Required for linking system libraries"
+mode           = "ro"
+when           = "always"
+
+[[module]]
+name           = "lib64"
+description    = "Library 64-bit symlink for modern Linux distros"
+default_dir    = "/lib64"
+required_files = ["ld-linux-x86-64.so.2"]
+functionality  = "Required for linking system libraries"
+mode           = "ro"
+when           = "always"
+
+[[module]]
+name           = "sbin"
+description    = "Symmetric bin symlink for modern Linux distros"
+default_dir    = "/sbin"
+required_files = ["ldconfig"]
+functionality  = "Required for system administration binaries"
+mode           = "ro"
+when           = "always"
+
+[[module]]
+name           = "dns_resolution"
+description    = "Files needed to resolve domain names"
+default_dir    = "/run/systemd/resolve"
+required_files = ["stub-resolv.conf"]
+functionality  = "Without this, network mode cannot resolve hostnames"
+mode           = "ro"
+when           = "network"
+
+[[module]]
+name           = "ssl_certificates"
+description    = "TLS certificate store for HTTPS"
+default_dir    = "/etc/ssl/certs"
+required_files = ["ca-certificates.crt"]
+functionality  = "Without this, HTTPS connections will fail"
+mode           = "ro"
+when           = "network"

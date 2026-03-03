@@ -7,11 +7,11 @@ mod cli;
 // Sandbox runner: builds and spawns the bwrap process
 mod sandbox;
 
-// Phase 2 (planned): scanner module will live here
-// mod scanner;
+// Phase 2: scanner module
+mod scanner;
 
-// Phase 2 (planned): config reader/writer for system.toml and user.toml
-// mod config;
+// Phase 2: config reader/writer for system.toml and user.toml
+mod config;
 
 use cli::{Cli, Commands};
 

@@ -1,16 +1,31 @@
+//! sandbox.rs
+//!
+//! Responsible for building and executing the bubblewrap sandbox.
+//!
+//! This module:
+//! - Loads verified system mounts from system.toml
+//! - Loads optional per-project user mounts from cordon.toml
+//! - Constructs the final bwrap command
+//! - Applies namespace isolation
+//! - Applies network policy
+//! - Executes the requested command inside the sandbox
+//!
+//! This module contains NO scanning logic and NO configuration mutation logic.
+//! It only consumes already-verified configuration.
+
 use anyhow::Result;
 use std::process::Command;
 use std::env;
+use std::path::PathBuf;
 
 /// Runs a command inside a bubblewrap (bwrap) sandbox.
 ///
-/// # What this does
-/// Builds a bwrap invocation that:
-/// - Creates isolated namespaces (user, pid, ipc, uts, cgroup)
-/// - Mounts system directories read-only
-/// - Binds the current project directory as writable
-/// - Overlays src/ as read-only if it exists
-/// - Optionally isolates or allows network
+/// # Responsibilities
+/// - Ensures system.toml exists (via pre_flight_check)
+/// - Applies system mounts (ro-bind / symlink)
+/// - Applies project and user mounts
+/// - Handles network isolation
+/// - Executes the final command
 ///
 /// # Phase 2 note
 /// Currently the bwrap arguments are hardcoded.
@@ -37,8 +52,7 @@ pub fn run_sandboxed(cmd: Vec<String>, network: bool, dry_run: bool) -> Result<(
 
     println!("🔒 Running inside sandbox...");
 
-    let project_dir = env::current_dir()?;
-    let project_path = project_dir.to_str().unwrap();
+    let project_dir: PathBuf = env::current_dir()?;
 
     let src_dir = project_dir.join("src");
     let has_src = src_dir.exists() && src_dir.is_dir();
@@ -112,12 +126,10 @@ pub fn run_sandboxed(cmd: Vec<String>, network: bool, dry_run: bool) -> Result<(
         println!("🌐 Network: enabled");
     }
 
-    // Set working directory inside sandbox to match outside
     bwrap
-        .arg("--chdir").arg(project_path)
-        .arg("--"); // separator: everything after this is the user's command
-
-    bwrap.args(&cmd);
+        .arg("--chdir").arg(&project_dir)
+        .arg("--") // end of bwrap args
+        .args(&cmd);
 
     if dry_run {
         let program = bwrap.get_program().to_string_lossy();
