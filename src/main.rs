@@ -21,13 +21,18 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { cmd, network } => sandbox::run_sandboxed(cmd, network)?,
+        Commands::Run { cmd, network, dry_run } => {
+            sandbox::run_sandboxed(cmd, network, dry_run)?
+        }
 
-        // Phase 2: scanner subcommand will be wired here
-        // Commands::Scan => scanner::run_scan()?,
+        Commands::Scan => {
+            println!("🔍 Phase 2: Scanner is not yet implemented.");
+            println!("Visit https://github.com/LORDv1shnu/cordon for progress updates.");
+        }
 
-        // Phase 2: add a path to user.toml (cordon.toml in project dir)
-        // Commands::Add { path, mode } => config::add_user_mount(path, mode)?,
+        Commands::Add { path, mode } => {
+            println!("📂 Phase 2: Add command is not yet implemented. (path={}, mode={})", path, mode);
+        }
     }
 
     Ok(())
