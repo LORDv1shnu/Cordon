@@ -34,7 +34,7 @@ use std::path::PathBuf;
 /// with symlink vs ro-bind chosen per entry's `bind_type` field.
 pub fn run_sandboxed(cmd: Vec<String>, network: bool, dry_run: bool) -> Result<()> {
     println!("Checking for Core Dependancy: Bwrap...");
-    /// Check bwrap is installed before doing anything else.
+    // Check bwrap is installed before doing anything else.
     if std::process::Command::new("which")
         .arg("bwrap")
         .output()
@@ -53,7 +53,7 @@ pub fn run_sandboxed(cmd: Vec<String>, network: bool, dry_run: bool) -> Result<(
     println!("🔒 Running inside sandbox...");
 
     let project_dir: PathBuf = env::current_dir()?;
-
+    let project_path = project_dir.to_str().unwrap();
     let src_dir = project_dir.join("src");
     let has_src = src_dir.exists() && src_dir.is_dir();
 
@@ -62,38 +62,44 @@ pub fn run_sandboxed(cmd: Vec<String>, network: bool, dry_run: bool) -> Result<(
     }
 
     if !dry_run {
-        println!("📂 Project dir: {}", project_path);
+        println!("📂 Project dir: {}", project_dir.display());
     }
 
     let mut bwrap = Command::new("bwrap");
-    
-    // Build the args
-    let mut args = vec![
+
+    // --- Core namespace isolation + filesystem skeleton ---
+    // Unshare all namespaces except network (controlled separately below).
+    // /usr is mounted read-only — the only real system directory we expose.
+    // Because Ubuntu/Debian use merged-usr (/bin → usr/bin etc.), we create
+    // those symlinks manually so binaries in the sandbox can find them.
+    bwrap.args([
         "--unshare-user",
         "--unshare-ipc",
         "--unshare-pid",
         "--unshare-uts",
         "--unshare-cgroup",
         "--ro-bind", "/usr", "/usr",
-        "--symlink", "usr/bin", "/bin",
-        "--symlink", "usr/lib", "/lib",
+        // merged-usr compatibility: /bin, /lib, /sbin, /lib64 are symlinks on Debian/Ubuntu
+        "--symlink", "usr/bin",  "/bin",
+        "--symlink", "usr/lib",  "/lib",
         "--symlink", "usr/lib64", "/lib64",
         "--symlink", "usr/sbin", "/sbin",
         "--tmpfs", "/tmp",
         "--proc", "/proc",
-        "--dev", "/dev",
+        "--dev",  "/dev",
+        // Project directory is writable — this is the whole point of the sandbox
         "--bind", project_path, project_path,
-    ];
+    ]);
 
     if has_src {
         let src_path = src_dir.to_str().unwrap();
-        args.push("--ro-bind");
-        args.push(src_path);
-        args.push(src_path);
+        bwrap.arg("--ro-bind");
+        bwrap.arg(src_path);
+        bwrap.arg(src_path);
     }
 
     if !network {
-        args.push("--unshare-net");
+        bwrap.arg("--unshare-net");
         if !dry_run { println!("🌐 Network: disabled"); }
     } else {
         // Instead of exposing all of /etc and /run,

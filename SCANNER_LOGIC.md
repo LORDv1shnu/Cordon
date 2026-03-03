@@ -416,23 +416,29 @@ When a `when = "network"` module fails verification during full scan:
 
 ### Scanner — Phase 2 Implementation
 
-- [ ] Define `CoreModule` struct (name, description, default_dir, required_files, functionality, mode, when)
-- [ ] Embed `core.toml` in binary using `include_str!()`
-- [ ] Write `core.toml` with all known required modules (base_libraries, dns, ssl, ld_cache, etc.)
-- [ ] Implement `parse_core()` — deserialize embedded core into Vec<CoreModule>
-- [ ] Implement `full_scan()` — two-step verify for each module, write to system.toml
+- [x] Define `CoreModule` struct (name, description, default_dir, required_files, functionality, mode, when)
+- [x] Define `CoreConfig`, `SystemConfig`, `MountEntry`, `UserConfig`, `UserMount` structs in `config.rs`
+- [x] Embed `core.toml` in binary using `include_str!()`
+- [x] Write `core.toml` with all required modules (usr, bin, lib, lib64, sbin, dns_resolution, ssl_certificates)
+- [x] Implement `parse_core()` — deserialize embedded core into `Vec<CoreModule>` via `toml::from_str()`
+- [x] Implement `full_scan()` — two-step verify for each module, write to system.toml
+- [x] Implement symlink detection — `fs::symlink_metadata()` → choose `bind_type` (ro-bind vs symlink)
+- [x] Mark network modules as `verified = false` when files missing (warn, not fail)
+- [x] Store `cordon_version` in system.toml header
+- [x] Implement `find_user_config()` in `config.rs` — walks up from cwd toward / for cordon.toml
+- [x] Implement `save_system_config()` — writes system.toml to `~/.config/cordon/`
+- [x] Wire `cordon scan` subcommand to scanner
 - [ ] Implement `integrity_check()` — file-first check against system.toml paths, fallback chain
-- [ ] Implement symlink detection — `fs::symlink_metadata()` → choose `bind_type`
 - [ ] Implement foreign entry detection — check every system.toml entry name against core
 - [ ] Implement user prompt for foreign entries — [D]iscard / [M]ove to user.toml
 - [ ] Auto-create user.toml if it doesn't exist on Move
-- [ ] Implement file lock on system.toml during write
-- [ ] Implement `find_user_config()` — walk up from cwd toward /home for cordon.toml
-- [ ] Store `cordon_version` in system.toml header — trigger rescan on mismatch
+- [ ] Version mismatch detection — binary version ≠ system.toml version → trigger main scan
 - [ ] Handle malformed system.toml — parse error → treat as empty → rescan
-- [ ] Mark network modules as `verified = false` if missing (warn not fail)
-- [ ] Hard fail on `--network` if network modules are `verified = false`
-- [ ] Wire `cordon scan` subcommand to scanner
-- [ ] Auto-trigger full scan on first `cordon run` (system.toml empty/missing)
+- [ ] Hard fail on `--network` if any network module has `verified = false`
+- [ ] Implement file lock on system.toml during write (prevent concurrent scan corruption)
+- [ ] Main Scanner: prompt user for corrected paths on missing modules
+- [ ] Main Scanner: partial re-run — only re-check affected module, never overwrite passing entries
+- [ ] Auto-trigger full scan on first `cordon run` (system.toml missing/empty)
 - [ ] Auto-trigger integrity check on verification error at runtime
-- [ ] Replace hardcoded bwrap paths in main app with entries read from system.toml + user.toml
+- [ ] Replace hardcoded bwrap paths in `sandbox.rs` with entries read from system.toml + user.toml
+- [ ] Wire `find_user_config()` into sandbox execution path (cordon.toml per-project mounts)

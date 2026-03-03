@@ -25,9 +25,9 @@ fn main() -> Result<()> {
             sandbox::run_sandboxed(cmd, network, dry_run)?
         }
 
-        Commands::Scan => {
-            println!("🔍 Phase 2: Scanner is not yet implemented.");
-            println!("Visit https://github.com/LORDv1shnu/cordon for progress updates.");
+        Commands::Scan {} => {
+            // scanner::run_scan() prints its own header — no need to print here
+            scanner::run_scan()?;
         }
 
         Commands::Add { path, mode } => {

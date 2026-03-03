@@ -68,7 +68,7 @@ cordon add /path/to/dir --mode rw
 
 ## Phases
 
-### Phase 1 — Core Sandbox `[IN PROGRESS]`
+### Phase 1 — Core Sandbox `[COMPLETE]`
 
 > Goal: A working sandbox runner with basic filesystem isolation.
 
@@ -81,13 +81,13 @@ cordon add /path/to/dir --mode rw
 | `src/` protected as read-only overlay | ✅ Done |
 | Network disabled by default (`--network` flag) | ✅ Done |
 | Portable symlink detection (cross-distro) | ✅ Done |
-| Dry-run mode (`--dry-run` flag) | ⬜ Pending |
-| Clean CLI output and UX polish | ⬜ Pending |
-| Refactor and code cleanup | ⬜ Pending |
+| Dry-run mode (`--dry-run` flag) | ✅ Done |
+| Clean CLI output and UX polish | ✅ Done |
+| Refactor: split into cli.rs, sandbox.rs, scanner.rs, config.rs | ✅ Done |
 
 ---
 
-### Phase 2 — Scanner & Policy System `[PLANNED]`
+### Phase 2 — Scanner & Policy System `[IN PROGRESS]`
 
 > Goal: Portable, verified mount configuration. Cordon works correctly on any Linux system.
 
@@ -111,25 +111,29 @@ bwrap reads **only** from `system.toml` and `user.toml`. Config files themselves
 
 | Feature | Status |
 |---|---|
+| Define `CoreModule`, `CoreConfig`, `SystemConfig`, `MountEntry` structs | ✅ Done |
 | Finalize `core.toml` module list (bare minimum for npm/AppImage/scripts) | ✅ Done |
 | Embed `core.toml` in binary via `include_str!()` | ✅ Done |
+| Main Scanner: deserialize core.toml → `Vec<CoreModule>` | ✅ Done |
 | Main Scanner: two-step dir + file verification | ✅ Done |
 | Main Scanner: symlink detection → `bind_type` in system.toml | ✅ Done |
-| Main Scanner: report missing modules + functionality loss | ⬜ Pending |
+| Main Scanner: mark network modules `verified = false` when missing | ✅ Done |
+| Main Scanner: report missing modules + functionality loss (warnings) | ✅ Done |
 | Main Scanner: prompt user for corrected paths | ⬜ Pending |
 | Main Scanner: partial re-run (only affected module, no overwrite of passing entries) | ⬜ Pending |
-| Quick Scanner: pre-flight file-only integrity check | ⬜ Pending |
+| Quick Scanner: pre-flight file-only integrity check (`integrity_check()`) | ⬜ Pending |
 | Quick Scanner: foreign entry detection in system.toml | ⬜ Pending |
 | Quick Scanner: prompt Discard / Move-to-user.toml for foreign entries | ⬜ Pending |
 | Quick Scanner: block bwrap if system.toml is dirty | ⬜ Pending |
 | `system.toml` generation with `bind_type` and `verified` fields | ✅ Done |
-| `system.toml` exact match enforcement (files must match core exactly) | ⬜ Pending |
-| Version field in system.toml header, mismatch triggers main scan | ⬜ Pending |
+| `cordon_version` stored in system.toml header | ✅ Done |
+| Version mismatch detection → trigger main scan | ⬜ Pending |
 | Malformed system.toml handling → treat as empty → trigger main scan | ⬜ Pending |
+| Hard fail on `--network` if network modules have `verified = false` | ⬜ Pending |
 | File lock on system.toml during writes (prevent corruption from concurrent runs) | ⬜ Pending |
-| `cordon.toml` (user.toml) discovery — walk up directory tree toward /home | ⬜ Pending |
+| `cordon.toml` (user.toml) discovery — walk up directory tree toward /home | ✅ Done (implemented, not yet wired to sandbox) |
 | `cordon scan` manual subcommand wired to main scanner | ✅ Done |
-| Auto-trigger main scanner on first `cordon run` | ⬜ Pending |
+| Auto-trigger main scanner on first `cordon run` (system.toml missing/empty) | ⬜ Pending |
 | bwrap reads from system.toml + user.toml instead of hardcoded paths | ⬜ Pending |
 | Exit code strategy — discuss and document | ⬜ Pending |
 

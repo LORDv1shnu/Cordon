@@ -20,7 +20,9 @@ when           = "always"
 name           = "lib"
 description    = "Library symlink for modern Linux distros"
 default_dir    = "/lib"
-required_files = ["ld-linux-x86-64.so.2"]
+# On Debian/Ubuntu merged-usr: /lib → /usr/lib. The dynamic linker lives
+# inside the arch triplet subdirectory, not at the root of /usr/lib.
+required_files = ["x86_64-linux-gnu/ld-linux-x86-64.so.2"]
 functionality  = "Required for linking system libraries"
 mode           = "ro"
 when           = "always"
