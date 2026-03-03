@@ -1,9 +1,9 @@
 [[module]]
-name           = "base_libraries"
-description    = "Core system libraries required to run any binary"
-default_dir    = "/usr/lib"
-required_files = ["libc.so.6", "libm.so.6"]
-functionality  = "Without this, no binaries will execute inside sandbox"
+name           = "usr"
+description    = "Entire /usr tree (binaries and libraries)"
+default_dir    = "/usr"
+required_files = ["bin"]
+functionality  = "Core system runtime"
 mode           = "ro"
 when           = "always"
 
