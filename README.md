@@ -82,6 +82,9 @@ cordon add /path/to/dir --mode rw
 | Network disabled by default (`--network` flag) | ✅ Done |
 | Portable symlink detection (cross-distro) | ✅ Done |
 | Dry-run mode (`--dry-run` flag) | ✅ Done |
+| GUI app support (`--gui` flag) — X11/Wayland/fontconfig | ✅ Done |
+| Narrowed `/etc` exposure — only bind specific files for network mode | ✅ Done |
+| Bwrap not installed detection — clear error with install instructions | ✅ Done |
 | Clean CLI output and UX polish | ✅ Done |
 | Refactor: split into cli.rs, sandbox.rs, scanner.rs, config.rs | ✅ Done |
 
@@ -136,6 +139,27 @@ bwrap reads **only** from `system.toml` and `user.toml`. Config files themselves
 | Auto-trigger main scanner on first `cordon run` (system.toml missing/empty) | ⬜ Pending |
 | bwrap reads from system.toml + user.toml instead of hardcoded paths | ⬜ Pending |
 | Exit code strategy — discuss and document | ⬜ Pending |
+
+---
+
+### Phase 2.5 — Runtime Environment Support `[PLANNED]`
+
+> Goal: Expose the bare minimum runtime resources so sandboxed apps actually work correctly.
+
+These are resources that many programs expect. Without them, apps may crash, show warnings, or behave incorrectly. Each should be opt-in or auto-detected, never exposed by default unless safe.
+
+| Feature | Status | Notes |
+|---|---|---|
+| D-Bus session bus passthrough | ⬜ Planned | Needed for clipboard, notifications, desktop integration |
+| GPU/DRI device access (`/dev/dri`) | ⬜ Planned | Needed for hardware-accelerated rendering in GUI apps |
+| Audio socket passthrough (PulseAudio/PipeWire) | ⬜ Planned | Needed for apps that play sound |
+| Locale/language files (`/usr/share/locale`, `LANG`) | ⬜ Planned | Prevents garbled text in international apps |
+| Timezone (`/etc/localtime`) | ⬜ Planned | Prevents wrong timestamps in logs and UIs |
+| Home directory config (read-only `~/.config`, `~/.local`, `~/.cache`) | ⬜ Planned | Some apps need config files to start; expose read-only |
+| Environment variable passthrough (`HOME`, `USER`, `LANG`, `PATH`, `XDG_*`) | ⬜ Planned | Many apps expect these to be set correctly |
+| Dynamic linker cache (`/etc/ld.so.cache`) | ⬜ Planned | Needed for binaries to find shared libraries efficiently |
+| dconf/GSettings write access (sandboxed tmpfs) | ⬜ Planned | Prevents dconf spam warnings; use tmpfs so writes are discarded on exit |
+| GVFS access for file dialogs | ⬜ Planned | Needed for GTK file open/save dialogs to work |
 
 ---
 

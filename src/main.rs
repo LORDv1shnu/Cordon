@@ -21,8 +21,8 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { cmd, network, dry_run } => {
-            sandbox::run_sandboxed(cmd, network, dry_run)?
+        Commands::Run { cmd, network, dry_run, gui } => {
+            sandbox::run_sandboxed(cmd, network, dry_run, gui)?
         }
 
         Commands::Scan {} => {

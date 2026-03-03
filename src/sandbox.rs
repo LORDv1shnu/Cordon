@@ -32,7 +32,7 @@ use std::path::PathBuf;
 /// In Phase 2 this will be replaced by reading verified paths from
 /// ~/.config/cordon/system.toml and the per-project cordon.toml (user.toml),
 /// with symlink vs ro-bind chosen per entry's `bind_type` field.
-pub fn run_sandboxed(cmd: Vec<String>, network: bool, dry_run: bool) -> Result<()> {
+pub fn run_sandboxed(cmd: Vec<String>, network: bool, dry_run: bool, gui: bool) -> Result<()> {
     println!("Checking for Core Dependancy: Bwrap...");
     // Check bwrap is installed before doing anything else.
     if std::process::Command::new("which")
@@ -130,6 +130,37 @@ pub fn run_sandboxed(cmd: Vec<String>, network: bool, dry_run: bool) -> Result<(
         }
     
         println!("🌐 Network: enabled");
+    }
+
+    if gui {
+        // X11 support
+        if let Ok(display) = std::env::var("DISPLAY") {
+            if std::path::Path::new("/tmp/.X11-unix").exists() {
+                bwrap.arg("--ro-bind")
+                     .arg("/tmp/.X11-unix")
+                     .arg("/tmp/.X11-unix");
+                bwrap.arg("--setenv")
+                     .arg("DISPLAY")
+                     .arg(&display);
+            }
+        }
+        // Wayland support (optional, for completeness)
+        if let Ok(xdg_runtime_dir) = std::env::var("XDG_RUNTIME_DIR") {
+            bwrap.arg("--ro-bind")
+                 .arg(&xdg_runtime_dir)
+                 .arg(&xdg_runtime_dir);
+            if let Ok(wayland_display) = std::env::var("WAYLAND_DISPLAY") {
+                bwrap.arg("--setenv")
+                     .arg("WAYLAND_DISPLAY")
+                     .arg(&wayland_display);
+            }
+        }
+        // Fontconfig (optional, for better font rendering)
+        if std::path::Path::new("/etc/fonts").exists() {
+            bwrap.arg("--ro-bind")
+                 .arg("/etc/fonts")
+                 .arg("/etc/fonts");
+        }
     }
 
     bwrap

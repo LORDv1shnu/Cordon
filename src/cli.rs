@@ -39,6 +39,9 @@ pub enum Commands {
         /// For debugging purposes, to see exactly what cordon is doing under the hood.
         #[arg(long, default_value_t = false)]
         dry_run: bool,
+        //to run GUI Apps
+        #[arg(long, default_value_t = false)]
+        gui: bool,
     },
 
     /// Scan the system and generate ~/.config/cordon/system.toml.
