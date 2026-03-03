@@ -27,100 +27,102 @@ use std::path::PathBuf;
 /// - Handles network isolation
 /// - Executes the final command
 ///
-/// # Security Notes
-/// - System mounts must already be verified by scanner
-/// - src/ is protected via read-only overlay
-/// - Network is disabled by default
-pub fn run_sandboxed(cmd: Vec<String>, network: bool) -> Result<()> {
-    // Phase 2: ensure system.toml resides and is valid
-    let system_config = crate::scanner::pre_flight_check()?;
-    let user_config = crate::config::find_user_config()?.unwrap_or_default();
+/// # Phase 2 note
+/// Currently the bwrap arguments are hardcoded.
+/// In Phase 2 this will be replaced by reading verified paths from
+/// ~/.config/cordon/system.toml and the per-project cordon.toml (user.toml),
+/// with symlink vs ro-bind chosen per entry's `bind_type` field.
+pub fn run_sandboxed(cmd: Vec<String>, network: bool, dry_run: bool) -> Result<()> {
+    println!("Checking for Core Dependancy: Bwrap...");
+    /// Check bwrap is installed before doing anything else.
+    if std::process::Command::new("which")
+        .arg("bwrap")
+        .output()
+        .map(|o| !o.status.success())
+        .unwrap_or(true)
+    {
+        anyhow::bail!(
+            "bubblewrap (bwrap) is not installed or not found in PATH.\n\
+             Install it with:\n\
+               Ubuntu/Debian:  sudo apt install bubblewrap\n\
+               Arch:           sudo pacman -S bubblewrap\n\
+               Fedora:         sudo dnf install bubblewrap"
+        );
+    }
+
+    println!("🔒 Running inside sandbox...");
 
     let project_dir: PathBuf = env::current_dir()?;
 
-    // Detect src/ for read-only overlay protection
     let src_dir = project_dir.join("src");
     let has_src = src_dir.exists() && src_dir.is_dir();
 
-    println!("🔒 Sandbox starting...");
+    if has_src && !dry_run {
+        println!("🔒 Protecting src/ as read-only");
+    }
+
+    if !dry_run {
+        println!("📂 Project dir: {}", project_path);
+    }
 
     let mut bwrap = Command::new("bwrap");
-    bwrap
-        .arg("--die-with-parent") // prevent orphan sandbox processes
-        .arg("--unshare-user")
-        .arg("--unshare-ipc")
-        .arg("--unshare-pid")
-        .arg("--unshare-uts")
-        .arg("--unshare-cgroup");
+    
+    // Build the args
+    let mut args = vec![
+        "--unshare-user",
+        "--unshare-ipc",
+        "--unshare-pid",
+        "--unshare-uts",
+        "--unshare-cgroup",
+        "--ro-bind", "/usr", "/usr",
+        "--symlink", "usr/bin", "/bin",
+        "--symlink", "usr/lib", "/lib",
+        "--symlink", "usr/lib64", "/lib64",
+        "--symlink", "usr/sbin", "/sbin",
+        "--tmpfs", "/tmp",
+        "--proc", "/proc",
+        "--dev", "/dev",
+        "--bind", project_path, project_path,
+    ];
 
-    // Process system mounts from system.toml
-    for mount in system_config.mounts {
-        // Skip network-only mounts if network is disabled
-        if mount.when == "network" && !network {
-            continue;
-        }
-
-        match mount.bind_type.as_str() {
-            "symlink" => {
-                bwrap.arg("--symlink")
-                    .arg(&mount.src)
-                    .arg(&mount.dest);
-            }
-            "ro-bind" => {
-                if mount.verified {
-                    bwrap.arg("--ro-bind")
-                        .arg(&mount.src)
-                        .arg(&mount.dest);
-                }
-            }
-            _ => {
-                bwrap.arg("--ro-bind")
-                    .arg(&mount.src)
-                    .arg(&mount.dest);
-            }
-        }
-    }
-
-    // Minimal required virtual filesystems
-    bwrap
-        .arg("--tmpfs").arg("/tmp")
-        .arg("--proc").arg("/proc")
-        .arg("--dev").arg("/dev");
-
-    // Bind the project directory as writable
-    bwrap
-        .arg("--bind")
-        .arg(&project_dir)
-        .arg(&project_dir);
-
-    // Overlay src/ as read-only if it exists
-    // Later mount wins — this protects source code
     if has_src {
-        bwrap
-            .arg("--ro-bind")
-            .arg(&src_dir)
-            .arg(&src_dir);
+        let src_path = src_dir.to_str().unwrap();
+        args.push("--ro-bind");
+        args.push(src_path);
+        args.push(src_path);
     }
 
-    // Process user mounts from cordon.toml
-    for mount in user_config.mounts {
-        let mode_flag = if mount.mode == "rw" {
-            "--bind"
-        } else {
-            "--ro-bind"
-        };
-
-        bwrap
-            .arg(mode_flag)
-            .arg(&mount.src)
-            .arg(&mount.dest);
-    }
-
-    // Network handling
     if !network {
-        bwrap.arg("--unshare-net");
-        println!("🌐 Network: disabled");
+        args.push("--unshare-net");
+        if !dry_run { println!("🌐 Network: disabled"); }
     } else {
+        // Instead of exposing all of /etc and /run,
+        // only bind the specific files needed for network + DNS + HTTPS.
+        // /etc/resolv.conf is a symlink to /run/systemd/resolve/ on systemd systems,
+        // so we need both. Exposing all of /etc would leak sensitive files
+        // like /etc/passwd, /etc/shadow, /etc/ssh/
+    
+        // DNS resolution
+        if std::path::Path::new("/etc/resolv.conf").exists() {
+            bwrap.arg("--ro-bind")
+                 .arg("/etc/resolv.conf")
+                 .arg("/etc/resolv.conf");
+        }
+    
+        // systemd DNS stub (resolv.conf symlink target)
+        if std::path::Path::new("/run/systemd/resolve").exists() {
+            bwrap.arg("--ro-bind")
+                 .arg("/run/systemd/resolve")
+                 .arg("/run/systemd/resolve");
+        }
+    
+        // HTTPS certificates
+        if std::path::Path::new("/etc/ssl/certs").exists() {
+            bwrap.arg("--ro-bind")
+                 .arg("/etc/ssl/certs")
+                 .arg("/etc/ssl/certs");
+        }
+    
         println!("🌐 Network: enabled");
     }
 
@@ -128,6 +130,19 @@ pub fn run_sandboxed(cmd: Vec<String>, network: bool) -> Result<()> {
         .arg("--chdir").arg(&project_dir)
         .arg("--") // end of bwrap args
         .args(&cmd);
+
+    if dry_run {
+        let program = bwrap.get_program().to_string_lossy();
+        let args = bwrap
+            .get_args()
+            .map(|a| a.to_string_lossy().to_string())
+            .collect::<Vec<_>>()
+            .join(" ");
+    
+        println!("🧪 Dry run mode: command not executed");
+        println!("{} {}", program, args);
+        return Ok(());
+    }
 
     let status = bwrap.status()?;
 
