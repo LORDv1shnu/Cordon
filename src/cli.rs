@@ -34,14 +34,15 @@ pub enum Commands {
         #[arg(long, default_value_t = false)]
         network: bool,
 
-        /// Dry-run mode: show what would be mounted without running the command.
+
+        /// Show the bubblewrap command and exit without executing it.
+        /// For debugging purposes, to see exactly what cordon is doing under the hood.
         #[arg(long, default_value_t = false)]
         dry_run: bool,
     },
 
-    /// Scan the system to verify available mount points and generate system.toml.
-    /// [PHASE 2 - Planned]
-    Scan,
+    // Phase 2: scan the system and generate ~/.config/cordon/system.toml
+    // Scan {},
 
     /// Add a custom path to the per-project cordon.toml (user.toml).
     /// [PHASE 2 - Planned]
