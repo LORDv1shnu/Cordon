@@ -1,64 +1,300 @@
+# ==============================================================
+# core.toml — Cordon Module Blueprint
+#
+# This file is compiled into the Cordon binary via include_str!().
+# It CANNOT be modified at runtime. Any change requires a rebuild.
+#
+# Fields:
+#   name           — unique identifier used to match entries in system.toml
+#   description    — human-readable explanation for developers
+#   default_dir    — where to look for this module on disk
+#   required_files — files that must exist inside default_dir to verify
+#   functionality  — what breaks if this module is missing
+#   mode           — "ro" (read-only) or "rw" (read-write)
+#   when           — "always" | "network" | "gui" | "optional"
+#   required       — true  = sandbox WILL NOT START without this
+#                    false = sandbox runs, but with reduced features
+#
+# 'when' values:
+#   always   — exposed in every sandbox run
+#   network  — only exposed when --network flag is passed
+#   gui      — only exposed when --gui flag is passed
+#   optional — not exposed by default; user must opt in via user.toml or flag
+# ==============================================================
+
+
+# ==============================================================
+# ALWAYS — MANDATORY
+# Every sandbox run needs these. Without them no binary executes.
+# ==============================================================
+
 [[module]]
 name           = "usr"
-description    = "Entire /usr tree (binaries and libraries)"
+# The entire /usr tree: all system binaries, libraries, shared data.
+# This is the single real system directory we expose. Everything else
+# under /usr (bin, lib, etc.) is accessible through this mount.
+description    = "Entire /usr tree — system binaries, libraries, shared data"
 default_dir    = "/usr"
-required_files = ["bin"]
-functionality  = "Core system runtime"
+required_files = ["bin/sh", "lib"]
+functionality  = "Without this, NO binary will execute inside the sandbox. This is the entire system runtime."
 mode           = "ro"
 when           = "always"
+required       = true
 
 [[module]]
 name           = "bin"
-description    = "Binary symlink for modern Linux distros"
+# On modern Ubuntu/Debian: /bin is a symlink → usr/bin (merged-usr layout).
+# On Arch, Fedora, etc.: /bin may be a real directory.
+# Scanner detects which case applies and sets bind_type accordingly.
+description    = "Symlink or directory: /bin → usr/bin. Entry point for all CLI tools."
 default_dir    = "/bin"
-required_files = ["cat"]
-functionality  = "Required for basic command line tools"
+required_files = ["cat", "sh"]
+functionality  = "Without this, basic shell commands (sh, cat, ls) will not be found."
 mode           = "ro"
 when           = "always"
+required       = true
 
 [[module]]
 name           = "lib"
-description    = "Library symlink for modern Linux distros"
+# On Debian/Ubuntu: /lib → /usr/lib. The dynamic linker (ld-linux) lives
+# inside the arch-triplet subdirectory (x86_64-linux-gnu/), not at root.
+# On non-merged distros: /lib is a real directory.
+# Scanner resolves the actual path and stores bind_type = symlink or ro-bind.
+description    = "Symlink or directory: /lib → usr/lib. Contains glibc and the dynamic linker."
 default_dir    = "/lib"
-# On Debian/Ubuntu merged-usr: /lib → /usr/lib. The dynamic linker lives
-# inside the arch triplet subdirectory, not at the root of /usr/lib.
 required_files = ["x86_64-linux-gnu/ld-linux-x86-64.so.2"]
-functionality  = "Required for linking system libraries"
+functionality  = "Without this, shared library linking fails. No dynamically linked binary will run."
 mode           = "ro"
 when           = "always"
+required       = true
 
 [[module]]
 name           = "lib64"
-description    = "Library 64-bit symlink for modern Linux distros"
+# On most 64-bit systems: /lib64 → usr/lib64 or usr/lib.
+# ld-linux-x86-64.so.2 is the canonical entry point for 64-bit ELF execution.
+description    = "Symlink or directory: /lib64. Entry point for 64-bit ELF dynamic linker."
 default_dir    = "/lib64"
 required_files = ["ld-linux-x86-64.so.2"]
-functionality  = "Required for linking system libraries"
+functionality  = "Without this, 64-bit ELF binaries cannot be executed at all."
 mode           = "ro"
 when           = "always"
+required       = true
 
 [[module]]
 name           = "sbin"
-description    = "Symmetric bin symlink for modern Linux distros"
+# On merged-usr distros: /sbin → usr/sbin.
+# Needed for system admin tools (ldconfig, etc.) that some install scripts use.
+description    = "Symlink or directory: /sbin → usr/sbin. System administration binaries."
 default_dir    = "/sbin"
 required_files = ["ldconfig"]
-functionality  = "Required for system administration binaries"
+functionality  = "Without this, system admin tools like ldconfig are unavailable inside the sandbox."
 mode           = "ro"
 when           = "always"
+required       = true
+
+
+# ==============================================================
+# NETWORK — MANDATORY (when --network is passed)
+# All three are required for network to work correctly.
+# If any has verified = false and user passes --network, hard fail.
+# ==============================================================
+
+[[module]]
+name           = "resolv_conf"
+# /etc/resolv.conf tells programs where the DNS server is.
+# On systemd systems it is a symlink to /run/systemd/resolve/stub-resolv.conf.
+# We bind the file itself (not all of /etc) to avoid leaking /etc/passwd etc.
+description    = "/etc/resolv.conf — DNS resolver config file."
+default_dir    = "/etc"
+required_files = ["resolv.conf"]
+functionality  = "Without this, DNS resolution fails. npm install, curl, pip will not resolve any hostnames."
+mode           = "ro"
+when           = "network"
+required       = true
 
 [[module]]
 name           = "dns_resolution"
-description    = "Files needed to resolve domain names"
+# systemd-resolved stub directory. This is the symlink TARGET of /etc/resolv.conf
+# on modern Ubuntu/Debian. Without this, even if resolv.conf is bound, DNS fails
+# because the file it points to is inaccessible.
+description    = "systemd-resolved stub directory — symlink target of /etc/resolv.conf."
 default_dir    = "/run/systemd/resolve"
 required_files = ["stub-resolv.conf"]
-functionality  = "Without this, network mode cannot resolve hostnames"
+functionality  = "Without this, DNS resolution silently fails when resolv.conf is a symlink (systemd systems)."
 mode           = "ro"
 when           = "network"
+required       = true
 
 [[module]]
 name           = "ssl_certificates"
-description    = "TLS certificate store for HTTPS"
+# The system CA certificate bundle. Without this, TLS handshakes fail
+# because the sandbox cannot verify server certificates.
+# This is why 'curl https://...' works but plain 'curl http://...' does not require it.
+description    = "TLS/SSL certificate store — required for HTTPS."
 default_dir    = "/etc/ssl/certs"
 required_files = ["ca-certificates.crt"]
-functionality  = "Without this, HTTPS connections will fail"
+functionality  = "Without this, ALL HTTPS connections fail with certificate verification errors."
 mode           = "ro"
 when           = "network"
+required       = true
+
+
+# ==============================================================
+# GUI — MANDATORY (when --gui is passed)
+# Required for a window to appear. Without these, the app crashes
+# or exits immediately with 'failed to open display' errors.
+# ==============================================================
+
+[[module]]
+name           = "x11_socket"
+# The X11 display socket directory. Every X11 GUI app connects
+# here to render its window. The actual socket name is X0, X1, etc.
+# We bind the whole directory since the number varies.
+description    = "X11 display socket directory — /tmp/.X11-unix."
+default_dir    = "/tmp/.X11-unix"
+required_files = []
+functionality  = "Without this, X11 GUI apps cannot connect to the display and will exit with 'failed to open display'."
+mode           = "ro"
+when           = "gui"
+required       = true
+
+[[module]]
+name           = "fonts"
+# fontconfig configuration directory. All GTK/Qt apps read this to find
+# fonts. Without it, apps may crash, show blank text, or spam errors.
+description    = "fontconfig configuration — /etc/fonts."
+default_dir    = "/etc/fonts"
+required_files = ["fonts.conf"]
+functionality  = "Without this, font rendering fails. GUI apps may crash or display blank/garbled text."
+mode           = "ro"
+when           = "gui"
+required       = true
+
+[[module]]
+name           = "wayland_runtime"
+# XDG_RUNTIME_DIR is user-specific (e.g. /run/user/1000).
+# Scanner MUST resolve this via the $XDG_RUNTIME_DIR env var at scan time,
+# not use a hardcoded path. The resolved path is stored in system.toml.
+description    = "XDG_RUNTIME_DIR — Wayland compositor socket lives here."
+default_dir    = "/run/user/1000"
+required_files = []
+functionality  = "Without this, Wayland-native GUI apps cannot connect to the compositor and will not open."
+mode           = "ro"
+when           = "gui"
+required       = true
+
+
+# ==============================================================
+# GUI — OPTIONAL (when --gui is passed)
+# Apps will open and run without these, but with reduced features.
+# verified = false for these is a warning, not a hard fail.
+# ==============================================================
+
+[[module]]
+name           = "dconf_runtime"
+# GNOME apps write preferences to /run/user/<uid>/dconf/user.
+# We expose this as rw so settings are writable. However, because
+# it is inside a tmpfs sandbox, writes are discarded on exit — by design.
+# Without this, dconf spams stderr but the app still runs.
+description    = "dconf/GSettings runtime directory — GNOME app preferences."
+default_dir    = "/run/user/1000/dconf"
+required_files = []
+functionality  = "Without this, GNOME apps cannot save settings. Spam dconf warnings appear in stderr, but app runs."
+mode           = "rw"
+when           = "gui"
+required       = false
+
+[[module]]
+name           = "dbus_session"
+# D-Bus is used for: clipboard, desktop notifications, app-to-app IPC.
+# Most GNOME/KDE apps expect a D-Bus session bus.
+# Without it apps still run but lose clipboard and notification support.
+description    = "D-Bus session bus socket — desktop IPC."
+default_dir    = "/run/user/1000"
+required_files = ["bus"]
+functionality  = "Without this, clipboard sharing, desktop notifications, and GVFS file dialogs will not work."
+mode           = "ro"
+when           = "gui"
+required       = false
+
+[[module]]
+name           = "gpu_dri"
+# Direct Rendering Infrastructure. Needed for OpenGL and Vulkan hardware acceleration.
+# Without this, apps fall back to software rendering (llvmpipe/softpipe).
+# Software rendering is slow but functional. Apps will run.
+description    = "GPU/DRI device files — /dev/dri. Hardware-accelerated rendering."
+default_dir    = "/dev/dri"
+required_files = []
+functionality  = "Without this, GPU acceleration is unavailable. Apps fall back to slow software rendering."
+mode           = "rw"
+when           = "gui"
+required       = false
+
+
+# ==============================================================
+# OPTIONAL — NOT exposed by default
+# User must opt in via user.toml or a future --opt-in flag.
+# These are safe for most use cases but not universally needed.
+# ==============================================================
+
+[[module]]
+name           = "locale_files"
+# System locale/i18n data. Needed for correct display of non-ASCII text.
+# Most CLI tools and scripts do not need this. GUI apps with i18n support do.
+description    = "System locale data — /usr/share/locale."
+default_dir    = "/usr/share/locale"
+required_files = []
+functionality  = "Without this, apps may display text in the wrong language or show encoding errors."
+mode           = "ro"
+when           = "optional"
+required       = false
+
+[[module]]
+name           = "timezone"
+# /etc/localtime is a symlink to the active timezone file.
+# Without it, apps will display UTC time instead of the user's local time.
+# Low security impact — safe to expose.
+description    = "System timezone config — /etc/localtime."
+default_dir    = "/etc"
+required_files = ["localtime"]
+functionality  = "Without this, all timestamps inside the sandbox will display in UTC, not local time."
+mode           = "ro"
+when           = "optional"
+required       = false
+
+[[module]]
+name           = "ld_so_cache"
+# /etc/ld.so.cache is the prebuilt index of shared libraries.
+# Without it, the dynamic linker falls back to scanning all library directories
+# on every process start — slow but functional.
+description    = "Dynamic linker cache — /etc/ld.so.cache."
+default_dir    = "/etc"
+required_files = ["ld.so.cache"]
+functionality  = "Without this, shared library resolution is slower. Apps still work, just with slower startup."
+mode           = "ro"
+when           = "optional"
+required       = false
+
+[[module]]
+name           = "audio_pipewire"
+# PipeWire is the modern audio server on Ubuntu 22.04+, Fedora, etc.
+# Socket lives in $XDG_RUNTIME_DIR/pipewire-0. Scanner resolves this via env.
+description    = "PipeWire audio socket — $XDG_RUNTIME_DIR/pipewire-0."
+default_dir    = "/run/user/1000/pipewire-0"
+required_files = []
+functionality  = "Without this, audio output via PipeWire will not work inside the sandbox. No sound."
+mode           = "rw"
+when           = "optional"
+required       = false
+
+[[module]]
+name           = "audio_pulse"
+# PulseAudio legacy audio server. Many older apps still use this.
+# Socket native lives in $XDG_RUNTIME_DIR/pulse/native.
+description    = "PulseAudio legacy audio socket — $XDG_RUNTIME_DIR/pulse."
+default_dir    = "/run/user/1000/pulse"
+required_files = ["native"]
+functionality  = "Without this, PulseAudio-based sound will not work. Apps that use PulseAudio directly will be silent."
+mode           = "rw"
+when           = "optional"
+required       = false

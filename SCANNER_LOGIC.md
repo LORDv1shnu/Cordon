@@ -4,6 +4,46 @@
 
 ---
 
+## 🔴 Priority Tasks (Immediate Next Steps)
+
+These three tasks must be completed in order before any other Phase 2 work.
+
+### Task 1 — Finalise `core.toml` ✅ Done
+Expand `core.toml` to cover all known runtime resources an app may need.
+Split into categories: mandatory (app will not work without it) vs optional
+(app works with reduced features). Add `required = true/false` field to each
+module. Add developer comments explaining each module's purpose.
+Also update `CoreModule` struct in `config.rs` to include the `required: bool` field.
+
+### Task 2 — Complete the Scanner Module 🔴 In Progress
+Finish `scanner.rs` according to the full design in this document:
+- `integrity_check()` — file-first check against system.toml paths with fallback chain
+- Foreign entry detection — check every system.toml name against core, prompt
+  user [D]iscard / [M]ove to user.toml if foreign entry found
+- Version mismatch detection — trigger main scan if binary version ≠ system.toml version
+- Malformed system.toml handling — treat as empty, trigger main scan
+- Hard fail on `--network` if any network module has `verified = false`
+- Hard fail on `--gui` if any gui required module has `verified = false`
+- Partial re-scan support — only re-check the affected module, never overwrite passing entries
+- Resolve `$XDG_RUNTIME_DIR` env var at scan time for gui/audio module paths
+- File lock on system.toml during write
+
+### Task 3 — Link Scanner to sandbox.rs 🔴 Pending
+Refactor `sandbox.rs` to:
+- On first run (no system.toml in cwd): auto-trigger `scanner::run_scan()`
+- On subsequent runs: call `scanner::pre_flight_check()` (quick scanner)
+- Only proceed to spawn bwrap after scanner gives green flag
+- Read all mount entries from system.toml instead of hardcoded paths
+- Filter mounts by `when` field: always load `when = "always"`, load `when = "network"`
+  only if `--network`, load `when = "gui"` only if `--gui`
+- For each mount entry, apply correct bwrap arg based on `bind_type`:
+  `ro-bind` → `--ro-bind src dest`, `symlink` → `--symlink src dest`,
+  `rw-bind` → `--bind src dest`
+- Read user.toml from `$HOME/.config/cordon/user.toml` and append those mounts
+- Keep project dir bind and src/ overlay logic as-is (these are not in system.toml)
+
+---
+
 ## The Three Files
 
 | File | Purpose | Read by bwrap? | Written by |
@@ -45,32 +85,57 @@ This means:
 
 ```toml
 [[module]]
-name           = "base_libraries"
-description    = "Core system libraries required to run any binary"
-default_dir    = "/usr/lib"
-required_files = ["libc.so.6", "libm.so.6"]
-functionality  = "Without this, no binaries will execute inside sandbox"
+name           = "usr"
+# Mandatory — entire /usr tree. Without this nothing runs.
+description    = "Entire /usr tree — system binaries, libraries, shared data"
+default_dir    = "/usr"
+required_files = ["bin/sh", "lib"]
+functionality  = "Without this, NO binary will execute inside the sandbox."
 mode           = "ro"
 when           = "always"
+required       = true
 
 [[module]]
 name           = "dns_resolution"
-description    = "Files needed to resolve domain names"
+# Required for --network. systemd-resolved stub, target of /etc/resolv.conf.
+description    = "systemd-resolved stub directory — symlink target of /etc/resolv.conf."
 default_dir    = "/run/systemd/resolve"
 required_files = ["stub-resolv.conf"]
-functionality  = "Without this, network mode cannot resolve hostnames"
+functionality  = "Without this, DNS resolution silently fails on systemd systems."
 mode           = "ro"
 when           = "network"
+required       = true
 
 [[module]]
-name           = "ssl_certificates"
-description    = "TLS certificate store for HTTPS"
-default_dir    = "/etc/ssl/certs"
-required_files = ["ca-certificates.crt"]
-functionality  = "Without this, HTTPS connections will fail"
+name           = "x11_socket"
+# Required for --gui. X11 display socket. App cannot show window without it.
+description    = "X11 display socket directory — /tmp/.X11-unix."
+default_dir    = "/tmp/.X11-unix"
+required_files = []
+functionality  = "Without this, X11 GUI apps cannot connect to the display."
 mode           = "ro"
-when           = "network"
+when           = "gui"
+required       = true
+
+[[module]]
+name           = "dconf_runtime"
+# Optional GUI. App still opens without it, but spams dconf warnings.
+description    = "dconf/GSettings runtime directory — GNOME app preferences."
+default_dir    = "/run/user/1000/dconf"
+required_files = []
+functionality  = "Without this, GNOME apps cannot save settings. App still runs."
+mode           = "rw"
+when           = "gui"
+required       = false
 ```
+
+**Key fields:**
+- `when = "always"` → always loaded
+- `when = "network"` → only loaded when `--network` is passed
+- `when = "gui"` → only loaded when `--gui` is passed
+- `when = "optional"` → not loaded by default, user opts in via user.toml
+- `required = true` → sandbox will NOT start if this module is missing/unverified
+- `required = false` → sandbox runs with reduced features, warnings shown
 
 ---
 
@@ -390,8 +455,8 @@ When a `when = "network"` module fails verification during full scan:
 
 | Decision | Choice |
 |---|---|
-| `system.toml` location | `~/.config/cordon/system.toml` |
-| `user.toml` scope | Per-project: `./cordon.toml` next to project files |
+| `system.toml` location | Per-project: `./system.toml` inside the current working directory (project-local, generated by first run or `cordon scan`) |
+| `user.toml` location | User-global: `~/.config/cordon/user.toml` (applies to all projects for this user) |
 | `core` tamper protection | Embedded in binary via `include_str!()` |
 | Symlink vs ro-bind | Runtime detection by scanner, stored as `bind_type` in system.toml |
 | Symlink entries in system.toml | `src` = target string, `dest` = link path, `bind_type = "symlink"` |
@@ -407,7 +472,11 @@ When a `when = "network"` module fails verification during full scan:
 | Malformed system.toml | Treat as empty, trigger main scan |
 | Concurrent scan processes | File lock on system.toml during write |
 | Finding `cordon.toml` | Walk UP from cwd toward /home until found. None = run without user mounts. |
-| `core.toml` module list | To be finalized — covers bare minimum for npm/AppImage/general scripts |
+| `core.toml` module list | Finalized — covers always/network/gui/optional categories with required flag |
+| `required` field in modules | true = hard fail if missing, false = warning + degraded mode |
+| `when` values | "always", "network", "gui", "optional" |
+| `$XDG_RUNTIME_DIR` paths | Resolved at scan time via env var, stored as actual path in system.toml |
+| GUI module failure behaviour | required=true missing → hard fail; required=false missing → warn in stderr, continue |
 | Exit code strategy | To be discussed |
 
 ---
@@ -417,9 +486,13 @@ When a `when = "network"` module fails verification during full scan:
 ### Scanner — Phase 2 Implementation
 
 - [x] Define `CoreModule` struct (name, description, default_dir, required_files, functionality, mode, when)
+- [ ] Add `required: bool` field to `CoreModule` struct in `config.rs` and update TOML deserialization
 - [x] Define `CoreConfig`, `SystemConfig`, `MountEntry`, `UserConfig`, `UserMount` structs in `config.rs`
 - [x] Embed `core.toml` in binary using `include_str!()`
 - [x] Write `core.toml` with all required modules (usr, bin, lib, lib64, sbin, dns_resolution, ssl_certificates)
+- [x] Expand `core.toml` with gui modules (x11_socket, fonts, wayland_runtime, dconf_runtime, dbus_session, gpu_dri)
+- [x] Expand `core.toml` with optional modules (locale_files, timezone, ld_so_cache, audio_pipewire, audio_pulse)
+- [x] Add `required = true/false` field and developer comments to every module in `core.toml`
 - [x] Implement `parse_core()` — deserialize embedded core into `Vec<CoreModule>` via `toml::from_str()`
 - [x] Implement `full_scan()` — two-step verify for each module, write to system.toml
 - [x] Implement symlink detection — `fs::symlink_metadata()` → choose `bind_type` (ro-bind vs symlink)
@@ -441,4 +514,10 @@ When a `when = "network"` module fails verification during full scan:
 - [ ] Auto-trigger full scan on first `cordon run` (system.toml missing/empty)
 - [ ] Auto-trigger integrity check on verification error at runtime
 - [ ] Replace hardcoded bwrap paths in `sandbox.rs` with entries read from system.toml + user.toml
-- [ ] Wire `find_user_config()` into sandbox execution path (cordon.toml per-project mounts)
+- [ ] Wire `find_user_config()` into sandbox execution path (user.toml global mounts)
+- [ ] Update system.toml location: per-project `./system.toml` in cwd
+- [ ] Update user.toml location: global `~/.config/cordon/user.toml`
+- [ ] Resolve `$XDG_RUNTIME_DIR` at scan time for gui/audio module paths
+- [ ] Filter mounts by `when` field when building bwrap command (always/network/gui/optional)
+- [ ] Apply correct bwrap arg per `bind_type`: ro-bind / symlink / bind (rw)
+- [ ] Hard fail if any `required = true` gui module has `verified = false` and `--gui` is passed
