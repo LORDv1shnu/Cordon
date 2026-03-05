@@ -12,6 +12,7 @@ pub struct CoreModule {
     pub functionality: String,
     pub mode: String,
     pub when: String,
+    pub required: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -28,6 +29,7 @@ pub struct MountEntry {
     pub bind_type: String, // "ro-bind" or "symlink"
     pub mode: String,
     pub when: String,
+    pub required: bool,
     #[serde(default = "default_verified")]
     pub verified: bool,
 }
@@ -56,6 +58,7 @@ pub struct UserMount {
     pub dest: String,
     pub mode: String,
     pub when: String,
+    pub required: bool,
 }
 
 pub fn get_config_dir() -> Result<PathBuf> {
@@ -77,7 +80,18 @@ pub fn load_system_config() -> Result<SystemConfig> {
 pub fn save_system_config(config: &SystemConfig) -> Result<()> {
     let path = get_config_dir()?.join("system.toml");
     let content = toml::to_string_pretty(config)?;
-    fs::write(path, content)?;
+    
+    let file = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open(&path)?;
+    
+    let mut lock = fd_lock::RwLock::new(file);
+    let mut write_guard = lock.write()?;
+    write_guard.set_len(0)?; // truncate
+    use std::io::Write;
+    write_guard.write_all(content.as_bytes())?;
+    
     Ok(())
 }
 
@@ -110,6 +124,7 @@ pub fn add_user_mount(path: String, mode: String) -> Result<()> {
         dest,
         mode,
         when: "always".to_string(),
+        required: true,
     });
     let content = toml::to_string_pretty(&config)?;
     fs::write("cordon.toml", content)?;
