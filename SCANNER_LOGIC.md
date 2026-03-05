@@ -501,23 +501,23 @@ When a `when = "network"` module fails verification during full scan:
 - [x] Implement `find_user_config()` in `config.rs` — walks up from cwd toward / for cordon.toml
 - [x] Implement `save_system_config()` — writes system.toml to `~/.config/cordon/`
 - [x] Wire `cordon scan` subcommand to scanner
-- [ ] Implement `integrity_check()` — file-first check against system.toml paths, fallback chain
-- [ ] Implement foreign entry detection — check every system.toml entry name against core
-- [ ] Implement user prompt for foreign entries — [D]iscard / [M]ove to user.toml
-- [ ] Auto-create user.toml if it doesn't exist on Move
-- [ ] Version mismatch detection — binary version ≠ system.toml version → trigger main scan
-- [ ] Handle malformed system.toml — parse error → treat as empty → rescan
-- [ ] Hard fail on `--network` if any network module has `verified = false`
-- [ ] Implement file lock on system.toml during write (prevent concurrent scan corruption)
-- [ ] Main Scanner: prompt user for corrected paths on missing modules
-- [ ] Main Scanner: partial re-run — only re-check affected module, never overwrite passing entries
-- [ ] Auto-trigger full scan on first `cordon run` (system.toml missing/empty)
-- [ ] Auto-trigger integrity check on verification error at runtime
-- [ ] Replace hardcoded bwrap paths in `sandbox.rs` with entries read from system.toml + user.toml
-- [ ] Wire `find_user_config()` into sandbox execution path (user.toml global mounts)
-- [ ] Update system.toml location: per-project `./system.toml` in cwd
-- [ ] Update user.toml location: global `~/.config/cordon/user.toml`
-- [ ] Resolve `$XDG_RUNTIME_DIR` at scan time for gui/audio module paths
-- [ ] Filter mounts by `when` field when building bwrap command (always/network/gui/optional)
-- [ ] Apply correct bwrap arg per `bind_type`: ro-bind / symlink / bind (rw)
-- [ ] Hard fail if any `required = true` gui module has `verified = false` and `--gui` is passed
+- [x] Implement `integrity_check()` — file-first check against system.toml paths, fallback chain
+- [x] Implement foreign entry detection — check every system.toml entry name against core
+- [x] Implement user prompt for foreign entries — [D]iscard / [M]ove to user.toml
+- [x] Auto-create user.toml if it doesn't exist on Move
+- [x] Version mismatch detection — binary version ≠ system.toml version → trigger main scan
+- [x] Handle malformed system.toml — parse error → treat as empty → rescan
+- [x] Hard fail on `--network` if any network module has `verified = false`
+- [x] Implement file lock on system.toml during write (prevent concurrent scan corruption)
+- [x] Main Scanner: prompt user for corrected paths on missing modules
+- [x] Main Scanner: partial re-run — only re-check affected module, never overwrite passing entries
+- [x] Auto-trigger full scan on first `cordon run` (system.toml missing/empty)
+- [x] Auto-trigger integrity check on verification error at runtime
+- [x] Replace hardcoded bwrap paths in `sandbox.rs` with entries read from system.toml + user.toml
+- [x] Wire `find_user_config()` into sandbox execution path (user.toml global mounts)
+- [x] Update system.toml location: per-project `./system.toml` in cwd
+- [x] Update user.toml location: global `~/.config/cordon/user.toml`
+- [x] Resolve `$XDG_RUNTIME_DIR` at scan time for gui/audio module paths
+- [x] Filter mounts by `when` field when building bwrap command (always/network/gui/optional)
+- [x] Apply correct bwrap arg per `bind_type`: ro-bind / symlink / bind (rw)
+- [x] Hard fail if any `required = true` gui module has `verified = false` and `--gui` is passed

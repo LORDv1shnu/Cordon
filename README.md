@@ -122,22 +122,22 @@ bwrap reads **only** from `system.toml` and `user.toml`. Config files themselves
 | Main Scanner: symlink detection → `bind_type` in system.toml | ✅ Done |
 | Main Scanner: mark network modules `verified = false` when missing | ✅ Done |
 | Main Scanner: report missing modules + functionality loss (warnings) | ✅ Done |
-| Main Scanner: prompt user for corrected paths | ⬜ Pending |
-| Main Scanner: partial re-run (only affected module, no overwrite of passing entries) | ⬜ Pending |
-| Quick Scanner: pre-flight file-only integrity check (`integrity_check()`) | ⬜ Pending |
-| Quick Scanner: foreign entry detection in system.toml | ⬜ Pending |
-| Quick Scanner: prompt Discard / Move-to-user.toml for foreign entries | ⬜ Pending |
-| Quick Scanner: block bwrap if system.toml is dirty | ⬜ Pending |
+| Main Scanner: prompt user for corrected paths | ✅ Done |
+| Main Scanner: partial re-run (only affected module, no overwrite of passing entries) | ✅ Done |
+| Quick Scanner: pre-flight file-only integrity check (`integrity_check()`) | ✅ Done |
+| Quick Scanner: foreign entry detection in system.toml | ✅ Done |
+| Quick Scanner: prompt Discard / Move-to-user.toml for foreign entries | ✅ Done |
+| Quick Scanner: block bwrap if system.toml is dirty | ✅ Done |
 | `system.toml` generation with `bind_type` and `verified` fields | ✅ Done |
 | `cordon_version` stored in system.toml header | ✅ Done |
-| Version mismatch detection → trigger main scan | ⬜ Pending |
-| Malformed system.toml handling → treat as empty → trigger main scan | ⬜ Pending |
-| Hard fail on `--network` if network modules have `verified = false` | ⬜ Pending |
-| File lock on system.toml during writes (prevent corruption from concurrent runs) | ⬜ Pending |
+| Version mismatch detection → trigger main scan | ✅ Done |
+| Malformed system.toml handling → treat as empty → trigger main scan | ✅ Done |
+| Hard fail on `--network` if network modules have `verified = false` | ✅ Done |
+| File lock on system.toml during writes (prevent corruption from concurrent runs) | ✅ Done |
 | `cordon.toml` (user.toml) discovery — walk up directory tree toward /home | ✅ Done (implemented, not yet wired to sandbox) |
 | `cordon scan` manual subcommand wired to main scanner | ✅ Done |
-| Auto-trigger main scanner on first `cordon run` (system.toml missing/empty) | ⬜ Pending |
-| bwrap reads from system.toml + user.toml instead of hardcoded paths | ⬜ Pending |
+| Auto-trigger main scanner on first `cordon run` (system.toml missing/empty) | ✅ Done |
+| bwrap reads from system.toml + user.toml instead of hardcoded paths | ✅ Done |
 | Exit code strategy — discuss and document | ⬜ Pending |
 
 ---
