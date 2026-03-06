@@ -11,7 +11,21 @@ cordon run --network -- curl https://example.com
 
 ---
 
-## The Problem
+## Exit Codes
+
+| Code | Meaning |
+|------|--------------------------------------------|
+| 0    | Success — sandboxed command exited cleanly |
+| 1    | Cordon internal error (config, scan, etc.) |
+| 2    | Bad CLI usage                              |
+| 125  | Sandbox could not be set up (e.g. bwrap missing, scan failed) |
+| 126  | Command found but not executable inside sandbox |
+| 127  | Command not found inside sandbox           |
+| N    | Any other code forwarded directly from the sandboxed process |
+
+Codes 125–127 follow the same convention as the shell and `bwrap` itself, so scripts that wrap `cordon run` can distinguish between setup failures and command failures.
+
+---
 
 When you run third-party code — AppImages, `pip install`, `npm install`, random `.sh` scripts — those programs run with **your full permissions**. They can read, modify, or delete anything you can.
 
@@ -138,7 +152,7 @@ bwrap reads **only** from `system.toml` and `user.toml`. Config files themselves
 | `cordon scan` manual subcommand wired to main scanner | ✅ Done |
 | Auto-trigger main scanner on first `cordon run` (system.toml missing/empty) | ✅ Done |
 | bwrap reads from system.toml + user.toml instead of hardcoded paths | ✅ Done |
-| Exit code strategy — discuss and document | ⬜ Pending |
+| Exit code strategy — discuss and document | ✅ Done |
 
 ---
 

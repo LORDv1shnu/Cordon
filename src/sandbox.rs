@@ -12,8 +12,14 @@
 //!
 //! This module contains NO scanning logic and NO configuration mutation logic.
 //! It only consumes already-verified configuration.
+//!
+//! ## Exit code contract
+//! Non-zero exits from the sandboxed process are forwarded via an anyhow error
+//! encoded as `"exit code: N"`. `main.rs` decodes this and calls
+//! `std::process::exit(N)` so the shell sees the child's real exit code.
+//! Sandbox setup failures (bwrap missing, scan error, etc.) produce exit 125.
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use std::process::Command;
 use std::env;
 use std::path::PathBuf;
@@ -35,19 +41,21 @@ use std::path::PathBuf;
 pub fn run_sandboxed(cmd: Vec<String>, network: bool, dry_run: bool, gui: bool) -> Result<()> {
     println!("Checking for Core Dependancy: Bwrap...");
     // Check bwrap is installed before doing anything else.
+    // If missing, exit 125 (sandbox setup failed — matches bwrap/shell convention).
     if std::process::Command::new("which")
         .arg("bwrap")
         .output()
         .map(|o| !o.status.success())
         .unwrap_or(true)
     {
-        anyhow::bail!(
-            "bubblewrap (bwrap) is not installed or not found in PATH.\n\
-             Install it with:\n\
-               Ubuntu/Debian:  sudo apt install bubblewrap\n\
-               Arch:           sudo pacman -S bubblewrap\n\
+        eprintln!(
+            "error: bubblewrap (bwrap) is not installed or not found in PATH.\n\
+             Install it with:\n  \
+               Ubuntu/Debian:  sudo apt install bubblewrap\n  \
+               Arch:           sudo pacman -S bubblewrap\n  \
                Fedora:         sudo dnf install bubblewrap"
         );
+        bail!("exit code: 125");
     }
 
     println!("🔒 Running inside sandbox...");
@@ -148,9 +156,12 @@ pub fn run_sandboxed(cmd: Vec<String>, network: bool, dry_run: bool, gui: bool) 
 
     if status.success() {
         println!("✅ Command completed successfully");
+        Ok(())
     } else {
-        println!("❌ Command failed with status: {}", status);
+        // Extract the child's exit code and propagate it via an encoded error.
+        // main.rs decodes "exit code: N" and calls std::process::exit(N).
+        let code = status.code().unwrap_or(1);
+        eprintln!("❌ Command exited with status: {}", code);
+        bail!("exit code: {}", code);
     }
-
-    Ok(())
 }

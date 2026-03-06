@@ -477,7 +477,7 @@ When a `when = "network"` module fails verification during full scan:
 | `when` values | "always", "network", "gui", "optional" |
 | `$XDG_RUNTIME_DIR` paths | Resolved at scan time via env var, stored as actual path in system.toml |
 | GUI module failure behaviour | required=true missing → hard fail; required=false missing → warn in stderr, continue |
-| Exit code strategy | To be discussed |
+| Exit code strategy | 0 = success; 1 = internal error; 2 = usage error; 125 = sandbox setup failed (bwrap missing, scan error); 126 = command not executable; 127 = command not found; N = forwarded from sandboxed process. Matches shell/bwrap convention. |
 
 ---
 
