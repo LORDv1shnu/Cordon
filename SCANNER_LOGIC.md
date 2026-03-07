@@ -89,6 +89,7 @@ The `dbus_session` module already exists in core.toml. What the scanner is still
 
 This is scanner work because it follows the same resolve-at-scan-time pattern as `$XDG_RUNTIME_DIR`.
 
+
 ### Task 10 — Device Node Detection (`bind_type = "dev-bind"`) 🔴 Pending
 
 Theory:
@@ -103,6 +104,20 @@ not `--ro-bind` — bwrap treats them differently. The scanner must handle this 
 - In sandbox.rs mount loop: handle `--dev-bind src dest` for this bind_type
 
 This is scanner + config work because it introduces a new bind_type the scanner must produce and sandbox must consume.
+
+### Task 11 — Audio Socket Path Resolution at Scan Time 🔴 Pending
+
+Theory:
+PulseAudio and PipeWire use a Unix socket for audio IPC. The socket path is stored in $PULSE_RUNTIME_PATH or $PIPEWIRE_RUNTIME_DIR (and sometimes $XDG_RUNTIME_DIR).
+
+The audio modules already exist in core.toml. What the scanner is still missing:
+- Read `$PIPEWIRE_RUNTIME_DIR` and `$PULSE_RUNTIME_PATH` env vars at scan time (fall back to `$XDG_RUNTIME_DIR` if unset)
+- Find the actual socket file (e.g. `pipewire-0`, `pulse/native`) in that directory
+- Verify the socket file exists on disk
+- Store the real path in system.toml under the appropriate audio module, `bind_type = "ro-bind"`
+- sandbox.rs must forward the correct env var via `--setenv` when `audio` is in the `--optional` list
+
+This is scanner work, following the same resolve-at-scan-time pattern as D-Bus and XDG_RUNTIME_DIR.
 
 ---
 
