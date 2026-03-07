@@ -68,6 +68,12 @@ cordon run -- <command>
 # Allow network access
 cordon run --network -- <command>
 
+# Run a GUI app
+cordon run --gui -- <command>
+
+# Activate optional modules at runtime
+cordon run --optional audio --optional dbus -- <command>
+
 # Dry-run: show what would be sandboxed without running
 cordon run --dry-run -- <command>
 
@@ -104,7 +110,7 @@ cordon add /path/to/dir --mode rw
 
 ---
 
-### Phase 2 — Scanner & Policy System `[IN PROGRESS]`
+### Phase 2 — Scanner & Policy System `[COMPLETE]`
 
 > Goal: Portable, verified mount configuration. Cordon works correctly on any Linux system.
 
@@ -148,7 +154,7 @@ bwrap reads **only** from `system.toml` and `user.toml`. Config files themselves
 | Malformed system.toml handling → treat as empty → trigger main scan | ✅ Done |
 | Hard fail on `--network` if network modules have `verified = false` | ✅ Done |
 | File lock on system.toml during writes (prevent corruption from concurrent runs) | ✅ Done |
-| `cordon.toml` (user.toml) discovery — walk up directory tree toward /home | ✅ Done (implemented, not yet wired to sandbox) |
+| `cordon.toml` (user.toml) discovery — walk up directory tree toward /home | ✅ Done |
 | `cordon scan` manual subcommand wired to main scanner | ✅ Done |
 | Auto-trigger main scanner on first `cordon run` (system.toml missing/empty) | ✅ Done |
 | bwrap reads from system.toml + user.toml instead of hardcoded paths | ✅ Done |
@@ -156,24 +162,30 @@ bwrap reads **only** from `system.toml` and `user.toml`. Config files themselves
 
 ---
 
-### Phase 2.5 — Runtime Environment Support `[PLANNED]`
+### Phase 2.5 — Runtime Environment Support `[COMPLETE]`
 
 > Goal: Expose the bare minimum runtime resources so sandboxed apps actually work correctly.
 
-These are resources that many programs expect. Without them, apps may crash, show warnings, or behave incorrectly. Each should be opt-in or auto-detected, never exposed by default unless safe.
+| Feature | Status | Notes |
+|---|---|---|
+| Remove stale sandbox.rs doc comment | ✅ Done | Doc comment now reflects config-driven flow |
+| `--optional <module>` flag for optional modules | ✅ Done | Mounts only if in system.toml and verified |
+| `cordon add` command wired to `add_user_mount()` | ✅ Done | Writes to per-project cordon.toml |
+| Environment variable passthrough (`HOME`, `USER`, `LANG`, `PATH`, `XDG_*`) | ✅ Done | Forwarded via `--setenv` for each safe var |
+| User.toml confirmation prompt before applying mounts | ✅ Done | Enter=yes / N=no / D=show paths |
+| Renamed `run_scan` → `full_scan`, `pre_flight_check` → `integrity_check` | ✅ Done | Clearer naming across codebase |
+
+**Remaining items (Phase 3+):**
 
 | Feature | Status | Notes |
 |---|---|---|
-| D-Bus session bus passthrough | ⬜ Planned | Needed for clipboard, notifications, desktop integration |
-| GPU/DRI device access (`/dev/dri`) | ⬜ Planned | Needed for hardware-accelerated rendering in GUI apps |
-| Audio socket passthrough (PulseAudio/PipeWire) | ⬜ Planned | Needed for apps that play sound |
-| Locale/language files (`/usr/share/locale`, `LANG`) | ⬜ Planned | Prevents garbled text in international apps |
-| Timezone (`/etc/localtime`) | ⬜ Planned | Prevents wrong timestamps in logs and UIs |
-| Home directory config (read-only `~/.config`, `~/.local`, `~/.cache`) | ⬜ Planned | Some apps need config files to start; expose read-only |
-| Environment variable passthrough (`HOME`, `USER`, `LANG`, `PATH`, `XDG_*`) | ⬜ Planned | Many apps expect these to be set correctly |
-| Dynamic linker cache (`/etc/ld.so.cache`) | ⬜ Planned | Needed for binaries to find shared libraries efficiently |
-| dconf/GSettings write access (sandboxed tmpfs) | ⬜ Planned | Prevents dconf spam warnings; use tmpfs so writes are discarded on exit |
-| GVFS access for file dialogs | ⬜ Planned | Needed for GTK file open/save dialogs to work |
+| D-Bus session bus passthrough | ⬜ Planned | Scanner resolves `$DBUS_SESSION_BUS_ADDRESS` socket path at scan time; sandbox.rs forwards env var when `--optional dbus` is used |
+| GPU/DRI device access (`/dev/dri`) | ⬜ Planned | Scanner detects device nodes, stores with new `bind_type = "dev-bind"`; sandbox.rs applies `--dev-bind` in mount loop |
+| Audio socket passthrough (PulseAudio/PipeWire) | ⬜ Planned | Scanner resolves `$PIPEWIRE_RUNTIME_DIR` / `$PULSE_RUNTIME_PATH` at scan time; forwarded when `--optional audio` used |
+| Locale/language files (`/usr/share/locale`, `LANG`) | ⬜ Planned | Prevents garbled text in international apps; already in core.toml, needs verification |
+| Timezone (`/etc/localtime`) | ⬜ Planned | Prevents wrong timestamps in logs and UIs; symlink in most distros, scanner handles it |
+| Home directory config (read-only `~/.config`, `~/.local`, `~/.cache`) | ⬜ Planned | Some apps need their own config files to start; expose read-only via user.toml or auto-detect |
+| Dynamic linker cache (`/etc/ld.so.cache`) | ⬜ Planned | Needed for binaries to find shared libraries efficiently; already in core.toml |
 
 ---
 
@@ -181,11 +193,11 @@ These are resources that many programs expect. Without them, apps may crash, sho
 
 > Goal: Show the user what the sandboxed program tried to do.
 
-| Feature | Status |
-|---|---|
-| strace integration | ⬜ Planned |
-| Blocked operation reporting | ⬜ Planned |
-| Access attempt log output | ⬜ Planned |
+| Feature | Status | Notes |
+|---|---|---|
+| strace integration | ⬜ Planned | Wrap bwrap process with strace, capture syscalls |
+| Blocked operation reporting | ⬜ Planned | Parse strace output to show what the app tried to access but couldn't |
+| Access attempt log output | ⬜ Planned | Write a structured log of blocked paths after each run |
 
 ---
 
@@ -245,3 +257,25 @@ cargo run -- run -- echo "hello from sandbox"
 - **bubblewrap** — Linux namespace sandboxing
 - **clap** — CLI argument parsing
 - **anyhow** — error handling
+
+---
+
+## AI Usage Attribution
+
+This project was built with AI assistance (GitHub Copilot / Claude). In the interest of transparency:
+
+**Human (author) contributions:**
+- System architecture and security model design
+- The three-file config system (core / system.toml / user.toml) concept
+- Two-scan design decision (full interactive scan vs. lightweight pre-flight check)
+- All key design decisions: hard-fail vs warn, phase structure, what modules are required, the foreign entry security model
+- Security reasoning (why core is embedded in the binary, trust boundaries)
+- Driving requirements, catching design issues, and setting overall direction
+
+**AI-assisted contributions:**
+- Writing and iterating on Rust implementation code
+- Translating design decisions into working code (scanner.rs rewrite, sandbox.rs wiring)
+- Boilerplate and struct definitions
+- Documentation comments
+
+The engineering decisions and design are the author's. AI was used as an implementation accelerator, not a decision maker.

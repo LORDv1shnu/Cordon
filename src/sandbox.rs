@@ -24,21 +24,20 @@ use std::process::Command;
 use std::env;
 use std::path::PathBuf;
 
-/// Runs a command inside a bubblewrap (bwrap) sandbox.
+/// Builds and executes the bubblewrap sandbox.
 ///
-/// # Responsibilities
-/// - Ensures system.toml exists (via pre_flight_check)
-/// - Applies system mounts (ro-bind / symlink)
-/// - Applies project and user mounts
-/// - Handles network isolation
-/// - Executes the final command
+/// Flow:
+///   1. Check bwrap is installed
+///   2. Run integrity_check() to validate system.toml
+///   3. Build bwrap command: namespace isolation, system mounts, user mounts
+///   4. Prompt user before applying cordon.toml (user.toml) mounts
+///   5. Forward safe environment variables into sandbox
+///   6. Execute command (or print in dry-run mode)
 ///
-/// # Phase 2 note
-/// Currently the bwrap arguments are hardcoded.
-/// In Phase 2 this will be replaced by reading verified paths from
-/// ~/.config/cordon/system.toml and the per-project cordon.toml (user.toml),
-/// with symlink vs ro-bind chosen per entry's `bind_type` field.
-pub fn run_sandboxed(cmd: Vec<String>, network: bool, dry_run: bool, gui: bool) -> Result<()> {
+/// All mount paths come from system.toml and cordon.toml — nothing is hardcoded.
+
+
+pub fn run_sandboxed(cmd: Vec<String>, network: bool, dry_run: bool, gui: bool, optional: Vec<String>) -> Result<()> {
     println!("Checking for Core Dependancy: Bwrap...");
     // Check bwrap is installed before doing anything else.
     // If missing, exit 125 (sandbox setup failed — matches bwrap/shell convention).
@@ -75,7 +74,7 @@ pub fn run_sandboxed(cmd: Vec<String>, network: bool, dry_run: bool, gui: bool) 
 
     let mut bwrap = Command::new("bwrap");
 
-    let system_config = crate::scanner::pre_flight_check(network, gui)?;
+    let system_config = crate::scanner::integrity_check(network, gui)?;
 
     // --- Core namespace isolation + standard pseudo-filesystems ---
     bwrap.args([
@@ -103,17 +102,57 @@ pub fn run_sandboxed(cmd: Vec<String>, network: bool, dry_run: bool, gui: bool) 
         if !mount.verified { continue; } // skip unverified modules
         if mount.when == "network" && !network { continue; }
         if mount.when == "gui" && !gui { continue; }
-        if mount.when == "optional" { continue; } // Optional mounts from system.toml not explicitly enabled yet
+        if mount.when == "optional" {
+            if !optional.contains(&mount.name) { continue; }
+            if !mount.verified {
+                eprintln!("warning: --opt-in {} requested but module is unverified — skipping", mount.name);
+                continue;
+            }
+        }
 
         let arg_flag = format!("--{}", mount.bind_type);
         bwrap.arg(&arg_flag).arg(&mount.src).arg(&mount.dest);
     }
 
-    // --- Apply dynamic mounts from user.toml ---
-    if let Ok(Some(user_config)) = crate::config::find_user_config() {
-        for mount in user_config.mounts {
-            let arg_flag = if mount.mode == "rw" { "--bind" } else { "--ro-bind" };
-            bwrap.arg(arg_flag).arg(&mount.src).arg(&mount.dest);
+    // --- Apply dynamic mounts from user.toml (with confirmation) ---
+    if let Ok(Some(ref user_config)) = crate::config::find_user_config() {
+        let apply = if dry_run {
+            // In dry-run mode, always include user.toml mounts so the full command is visible
+            true
+        } else {
+            // Ask user before exposing anything from cordon.toml
+            println!();
+            println!("⚠️  cordon.toml found with custom path exposures.");
+            loop {
+                print!("   Apply these mounts? [Enter=yes / N=no / D=show paths]: ");
+                std::io::Write::flush(&mut std::io::stdout()).unwrap_or(());
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input).unwrap_or(0);
+                match input.trim().to_uppercase().as_str() {
+                    "" | "Y" => break true,
+                    "N" => {
+                        println!("   Skipping cordon.toml mounts.");
+                        break false;
+                    }
+                    "D" => {
+                        println!("   Paths in cordon.toml:");
+                        for m in &user_config.mounts {
+                            println!("     {} {} ({})", if m.mode == "rw" { "rw" } else { "ro" }, m.src, m.dest);
+                        }
+                        // loop again to ask
+                    }
+                    _ => {
+                        println!("   Unknown input. Enter, N, or D.");
+                    }
+                }
+            }
+        };
+
+        if apply {
+            for mount in &user_config.mounts {
+                let arg_flag = if mount.mode == "rw" { "--bind" } else { "--ro-bind" };
+                bwrap.arg(arg_flag).arg(&mount.src).arg(&mount.dest);
+            }
         }
     }
 
@@ -131,6 +170,15 @@ pub fn run_sandboxed(cmd: Vec<String>, network: bool, dry_run: bool, gui: bool) 
         }
         if let Ok(wayland_display) = std::env::var("WAYLAND_DISPLAY") {
             bwrap.arg("--setenv").arg("WAYLAND_DISPLAY").arg(&wayland_display);
+        }
+    }
+
+    for var in [
+        "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "PATH", "XDG_RUNTIME_DIR",
+        "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME"
+    ] {
+        if let Ok(val) = std::env::var(var) {
+            bwrap.arg("--setenv").arg(var).arg(val);
         }
     }
 

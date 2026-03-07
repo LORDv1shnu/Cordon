@@ -4,9 +4,7 @@
 
 ---
 
-## 🔴 Priority Tasks (Immediate Next Steps)
-
-These three tasks must be completed in order before any other Phase 2 work.
+## ✅ Completed Tasks (Phase 2 Core)
 
 ### Task 1 — Finalise `core.toml` ✅ Done
 Expand `core.toml` to cover all known runtime resources an app may need.
@@ -15,32 +13,96 @@ Split into categories: mandatory (app will not work without it) vs optional
 module. Add developer comments explaining each module's purpose.
 Also update `CoreModule` struct in `config.rs` to include the `required: bool` field.
 
-### Task 2 — Complete the Scanner Module 🔴 In Progress
-Finish `scanner.rs` according to the full design in this document:
-- `integrity_check()` — file-first check against system.toml paths with fallback chain
-- Foreign entry detection — check every system.toml name against core, prompt
-  user [D]iscard / [M]ove to user.toml if foreign entry found
-- Version mismatch detection — trigger main scan if binary version ≠ system.toml version
-- Malformed system.toml handling — treat as empty, trigger main scan
-- Hard fail on `--network` if any network module has `verified = false`
-- Hard fail on `--gui` if any gui required module has `verified = false`
-- Partial re-scan support — only re-check the affected module, never overwrite passing entries
-- Resolve `$XDG_RUNTIME_DIR` env var at scan time for gui/audio module paths
-- File lock on system.toml during write
+### Task 2 — Complete the Scanner Module ✅ Done
+Fully rewritten with two-mode architecture:
+- `full_scan()` — interactive 4-phase full scan, ONLY function that writes system.toml
+  - Phase 1: always modules scanned automatically
+  - Phase 2: single yes/no for entire network group
+  - Phase 3: single yes/no for entire GUI group
+  - Phase 4: per-module ask for optional modules with functionality description shown
+- `integrity_check(network, gui)` — non-interactive 6-step check before every `cordon run`
+  - Step 1: parse system.toml → malformed? → trigger full scan
+  - Step 2: version check → mismatch? → trigger full scan
+  - Step 3: foreign entry check → unknown name? → hard block (no scan)
+  - Step 4: file existence check → broken paths? → trigger full scan
+  - Step 5: --network gate → required network module missing/unverified? → bail
+  - Step 6: --gui gate → required gui module missing/unverified? → bail
+- `resolve_env_vars()` — resolves `/run/user/1000` → real `$XDG_RUNTIME_DIR` at scan time
+- File lock on system.toml during write via `fd-lock` crate
 
-### Task 3 — Link Scanner to sandbox.rs 🔴 Pending
-Refactor `sandbox.rs` to:
-- On first run (no system.toml in cwd): auto-trigger `scanner::run_scan()`
-- On subsequent runs: call `scanner::pre_flight_check()` (quick scanner)
-- Only proceed to spawn bwrap after scanner gives green flag
-- Read all mount entries from system.toml instead of hardcoded paths
-- Filter mounts by `when` field: always load `when = "always"`, load `when = "network"`
-  only if `--network`, load `when = "gui"` only if `--gui`
-- For each mount entry, apply correct bwrap arg based on `bind_type`:
-  `ro-bind` → `--ro-bind src dest`, `symlink` → `--symlink src dest`,
-  `rw-bind` → `--bind src dest`
-- Read user.toml from `$HOME/.config/cordon/user.toml` and append those mounts
-- Keep project dir bind and src/ overlay logic as-is (these are not in system.toml)
+### Task 3 — Link Scanner to sandbox.rs ✅ Done
+`sandbox.rs` is fully config-driven:
+- Calls `crate::scanner::integrity_check(network, gui)` to get `SystemConfig`
+- Iterates `system_config.mounts`, skips unverified, filters by `when` field
+- Applies `--{bind_type} src dest` for each mount (ro-bind, bind, symlink)
+- Reads user.toml via `crate::config::find_user_config()`
+- Forwards child process exit codes via encoded `bail!("exit code: N")`
+- No hardcoded paths remain in sandbox.rs
+
+---
+
+## ✅ Phase 2.5 Priority Tasks (Completed)
+
+### Task 4 — Cleanup: Remove Stale Comment in sandbox.rs ✅ Done
+Doc comment on `run_sandboxed()` updated. No longer references hardcoded paths.
+Now accurately describes the config-driven flow: integrity_check → system mounts →
+user mounts (with confirmation) → env passthrough → execute.
+
+### Task 5 — Implement `--optional` Flag for Optional Modules ✅ Done
+- Added `--optional <module>` flag to `cordon run` CLI in `cli.rs` (multivalue)
+- Passed into `sandbox::run_sandboxed()`
+- Mount loop checks: optional module must be in the `--optional` list AND verified
+- Prints warning if user requests an unverified optional module
+
+### Task 6 — Implement `cordon add` Command ✅ Done
+- `main.rs` calls `config::add_user_mount(path, mode)` directly
+- Appends a `UserMount` to the per-project `cordon.toml`
+- Creates cordon.toml if it doesn’t exist
+
+### Task 7 — Environment Variable Passthrough ✅ Done
+- Safe env vars forwarded: HOME, USER, LOGNAME, LANG, LC_ALL, PATH,
+  XDG_RUNTIME_DIR, XDG_CONFIG_HOME, XDG_DATA_HOME, XDG_CACHE_HOME
+- GUI vars (DISPLAY, WAYLAND_DISPLAY) forwarded when --gui is passed
+- Sensitive vars (DBUS_SESSION_BUS_ADDRESS) are NOT forwarded by default
+
+### Task 8 — User.toml Confirmation Prompt ✅ Done
+- Before applying cordon.toml mounts, user is prompted: Enter=yes / N=no / D=show paths
+- cordon.toml mounts are never applied silently
+- In dry-run mode, mounts are always included so the full command is visible
+
+---
+
+## 🔴 Next Scanner Tasks
+
+### Task 9 — D-Bus Socket Path Resolution at Scan Time 🔴 Pending
+
+Theory:
+D-Bus is a message bus — apps use it to talk to each other (clipboard, notifications, media controls). The socket is a file on disk, its path is stored in $DBUS_SESSION_BUS_ADDRESS.
+
+
+The `dbus_session` module already exists in core.toml. What the scanner is still missing:
+- Read `$DBUS_SESSION_BUS_ADDRESS` env var at scan time (e.g. `unix:path=/run/user/1000/bus`)
+- Strip the `unix:path=` prefix to extract the real socket file path
+- Verify the socket file exists on disk
+- Store real path in system.toml under `dbus_session`, `bind_type = "ro-bind"` (it's a socket file, not a device node)
+- sandbox.rs must forward `DBUS_SESSION_BUS_ADDRESS` via `--setenv` when `dbus` is in the `--optional` list
+
+This is scanner work because it follows the same resolve-at-scan-time pattern as `$XDG_RUNTIME_DIR`.
+
+### Task 10 — Device Node Detection (`bind_type = "dev-bind"`) 🔴 Pending
+
+Theory:
+
+/dri contains GPU device files (card0, renderD128). These are device nodes — a special file type in Linux. bwrap has a dedicated flag for them: --dev-bind. You cannot use --ro-bind on device nodes.
+
+GPU/DRI access requires binding device nodes under `/dev/dri/`. Device files need `--dev-bind` in bwrap,
+not `--ro-bind` — bwrap treats them differently. The scanner must handle this new type:
+- Add `"dev-bind"` as a valid `bind_type` value in `MountEntry` in `config.rs`
+- In `full_scan()`: detect `/dev/dri/` — check it exists, list device nodes (card0, renderD128, etc.)
+- Store in system.toml with `bind_type = "dev-bind"`
+- In sandbox.rs mount loop: handle `--dev-bind src dest` for this bind_type
+
+This is scanner + config work because it introduces a new bind_type the scanner must produce and sandbox must consume.
 
 ---
 
@@ -396,19 +458,19 @@ This is a **pre-flight check**, not just a scan-time check. bwrap never starts i
 
 ---
 
-## Two Scanner Programs
+## Two Scanner Functions
 
-### Main Scanner
+### Full Scan (`full_scan()`)
 - Runs on: first ever `cordon run`, manual `cordon scan`, when a problem is detected
 - Does: full two-step verification (dir exists → files exist inside it)
 - Writes to: system.toml
 - Handles: user prompts for missing paths, partial re-runs, foreign entry cleanup
 
-### Quick Scanner
+### Integrity Check (`integrity_check()`)
 - Runs on: before every `cordon run` (pre-flight)
 - Does: lightweight file-only integrity check against current system.toml paths
 - Does NOT write to system.toml
-- Triggers main scanner if anything fails
+- Triggers full scan if anything fails
 
 ---
 
@@ -486,7 +548,7 @@ When a `when = "network"` module fails verification during full scan:
 ### Scanner — Phase 2 Implementation
 
 - [x] Define `CoreModule` struct (name, description, default_dir, required_files, functionality, mode, when)
-- [ ] Add `required: bool` field to `CoreModule` struct in `config.rs` and update TOML deserialization
+- [x] Add `required: bool` field to `CoreModule` struct in `config.rs` and update TOML deserialization
 - [x] Define `CoreConfig`, `SystemConfig`, `MountEntry`, `UserConfig`, `UserMount` structs in `config.rs`
 - [x] Embed `core.toml` in binary using `include_str!()`
 - [x] Write `core.toml` with all required modules (usr, bin, lib, lib64, sbin, dns_resolution, ssl_certificates)

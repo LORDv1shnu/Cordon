@@ -39,16 +39,20 @@ pub enum Commands {
         /// For debugging purposes, to see exactly what cordon is doing under the hood.
         #[arg(long, default_value_t = false)]
         dry_run: bool,
-        //to run GUI Apps
+        /// Enable GUI app support (X11/Wayland/fonts).
         #[arg(long, default_value_t = false)]
         gui: bool,
+
+        /// Activate optional modules by name (e.g. --optional audio --optional dbus).
+        /// Module must exist in system.toml and be verified.
+        #[arg(long, value_name = "MODULE")]
+        optional: Vec<String>,
     },
 
     /// Scan the system and generate ~/.config/cordon/system.toml.
     Scan {},
 
-    /// Add a custom path to the per-project cordon.toml (user.toml).
-    /// [PHASE 2 - Planned]
+    /// Add a custom path to the per-project cordon.toml.
     Add {
         /// Path to the directory or file.
         path: String,

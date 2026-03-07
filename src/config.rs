@@ -1,8 +1,16 @@
+//! config.rs
+//!
+//! Data structures and I/O for the three-layer config system:
+//!   - core.toml (embedded in binary, deserialized into CoreConfig)
+//!   - system.toml (scanner output, read/written as SystemConfig)
+//!   - cordon.toml (user-defined mounts, read/written as UserConfig)
+
 use serde::{Deserialize, Serialize};
 use anyhow::{Result, Context};
 use std::fs;
 use std::path::{PathBuf};
 
+/// A single module entry from core.toml (the embedded blueprint).
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CoreModule {
     pub name: String,
@@ -15,12 +23,14 @@ pub struct CoreModule {
     pub required: bool,
 }
 
+/// Top-level structure of core.toml. Contains all module definitions.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CoreConfig {
     #[serde(rename = "module")]
     pub modules: Vec<CoreModule>,
 }
 
+/// A single verified mount entry written to system.toml by the scanner.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MountEntry {
     pub name: String,
@@ -38,6 +48,7 @@ fn default_verified() -> bool {
     true
 }
 
+/// Top-level structure of system.toml (scanner output).
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SystemConfig {
     pub last_scan: String,
@@ -46,12 +57,14 @@ pub struct SystemConfig {
     pub mounts: Vec<MountEntry>,
 }
 
+/// Top-level structure of cordon.toml (user-defined mounts).
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct UserConfig {
     #[serde(rename = "mount", default)]
     pub mounts: Vec<UserMount>,
 }
 
+/// A single user-defined mount entry from cordon.toml.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct UserMount {
     pub src: String,
@@ -61,6 +74,7 @@ pub struct UserMount {
     pub required: bool,
 }
 
+/// Returns the path to ~/.config/cordon/, creating it if needed.
 pub fn get_config_dir() -> Result<PathBuf> {
     let home = std::env::var("HOME").context("HOME not set")?;
     let path = PathBuf::from(home).join(".config").join("cordon");
@@ -70,6 +84,7 @@ pub fn get_config_dir() -> Result<PathBuf> {
     Ok(path)
 }
 
+/// Reads and parses system.toml from ~/.config/cordon/.
 pub fn load_system_config() -> Result<SystemConfig> {
     let path = get_config_dir()?.join("system.toml");
     let content = fs::read_to_string(path)?;
@@ -77,6 +92,7 @@ pub fn load_system_config() -> Result<SystemConfig> {
     Ok(config)
 }
 
+/// Writes system.toml to ~/.config/cordon/ with file locking.
 pub fn save_system_config(config: &SystemConfig) -> Result<()> {
     let path = get_config_dir()?.join("system.toml");
     let content = toml::to_string_pretty(config)?;
@@ -95,6 +111,8 @@ pub fn save_system_config(config: &SystemConfig) -> Result<()> {
     Ok(())
 }
 
+/// Walks up from the current directory looking for cordon.toml.
+/// Returns None if no cordon.toml is found before reaching /.
 pub fn find_user_config() -> Result<Option<UserConfig>> {
     let mut current = std::env::current_dir()?;
     loop {
@@ -115,6 +133,8 @@ pub fn find_user_config() -> Result<Option<UserConfig>> {
     Ok(None)
 }
 
+/// Appends a new mount to cordon.toml in the current directory.
+/// Creates the file if it doesn't exist.
 pub fn add_user_mount(path: String, mode: String) -> Result<()> {
     let mut config = find_user_config()?.unwrap_or_default();
     let dest = format!("/project/{}", path.trim_start_matches('/'));

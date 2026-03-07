@@ -26,10 +26,10 @@ mod cli;
 // Sandbox runner: builds and spawns the bwrap process
 mod sandbox;
 
-// Phase 2: scanner module
+// Scanner: full_scan() and integrity_check()
 mod scanner;
 
-// Phase 2: config reader/writer for system.toml and user.toml
+// Config: structs, system.toml read/write, cordon.toml (user.toml) discovery
 mod config;
 
 use cli::{Cli, Commands};
@@ -45,18 +45,17 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Run { cmd, network, dry_run, gui } => {
-            sandbox::run_sandboxed(cmd, network, dry_run, gui)
+        Commands::Run { cmd, network, dry_run, gui, optional } => {
+            sandbox::run_sandboxed(cmd, network, dry_run, gui, optional)
         }
 
         Commands::Scan {} => {
-            // scanner::run_scan() prints its own header — no need to print here
-            scanner::run_scan()
+            // scanner::full_scan() prints its own header — no need to print here
+            scanner::full_scan()
         }
 
         Commands::Add { path, mode } => {
-            println!("📂 Phase 2: Add command is not yet implemented. (path={}, mode={})", path, mode);
-            Ok(())
+            config::add_user_mount(path, mode)
         }
     };
 
