@@ -1,9 +1,9 @@
-use anyhow::{Context, Result};
-use crate::config::{CoreConfig, CoreModule, MountEntry, SystemConfig};
-use std::io::{self, Write};
-use chrono::Utc;
-use super::module_scan::scan_module_interactive;
 use super::CORE_TOML;
+use super::module_scan::scan_module_interactive;
+use crate::config::{CoreConfig, CoreModule, MountEntry, SystemConfig};
+use anyhow::{Context, Result};
+use chrono::Utc;
+use std::io::{self, Write};
 
 /// Print a yes/no prompt and return true only if the user types 'y' or 'Y'.
 /// Any other input (including pressing Enter directly) defaults to No.
@@ -45,8 +45,8 @@ pub fn full_scan() -> Result<()> {
     println!("and writes system.toml that the sandbox reads at runtime.");
     println!();
 
-    let core: CoreConfig = toml::from_str(CORE_TOML)
-        .context("Failed to parse embedded core.toml")?;
+    let core: CoreConfig =
+        toml::from_str(CORE_TOML).context("Failed to parse embedded core.toml")?;
 
     let mut mounts: Vec<MountEntry> = Vec::new();
 
@@ -59,7 +59,14 @@ pub fn full_scan() -> Result<()> {
         print!("  Scanning {:20} ... ", module.name);
         io::stdout().flush().unwrap_or(());
         if let Some(mount) = scan_module_interactive(module)? {
-            println!("{}", if mount.verified { "✅" } else { "⚠️  unverified" });
+            println!(
+                "{}",
+                if mount.verified {
+                    "✅"
+                } else {
+                    "⚠️  unverified"
+                }
+            );
             mounts.push(mount);
         }
     }
@@ -77,7 +84,14 @@ pub fn full_scan() -> Result<()> {
             print!("  Scanning {:20} ... ", module.name);
             io::stdout().flush().unwrap_or(());
             if let Some(mount) = scan_module_interactive(module)? {
-                println!("{}", if mount.verified { "✅" } else { "⚠️  unverified" });
+                println!(
+                    "{}",
+                    if mount.verified {
+                        "✅"
+                    } else {
+                        "⚠️  unverified"
+                    }
+                );
                 mounts.push(mount);
             }
         }
@@ -98,7 +112,14 @@ pub fn full_scan() -> Result<()> {
             print!("  Scanning {:20} ... ", module.name);
             io::stdout().flush().unwrap_or(());
             if let Some(mount) = scan_module_interactive(module)? {
-                println!("{}", if mount.verified { "✅" } else { "⚠️  unverified" });
+                println!(
+                    "{}",
+                    if mount.verified {
+                        "✅"
+                    } else {
+                        "⚠️  unverified"
+                    }
+                );
                 mounts.push(mount);
             }
         }
@@ -108,7 +129,9 @@ pub fn full_scan() -> Result<()> {
     println!();
 
     // ── Phase 4: Optional modules — explained and asked individually
-    let optionals: Vec<&CoreModule> = core.modules.iter()
+    let optionals: Vec<&CoreModule> = core
+        .modules
+        .iter()
         .filter(|m| m.when == "optional")
         .collect();
 
@@ -128,7 +151,14 @@ pub fn full_scan() -> Result<()> {
                 print!("     Scanning ... ");
                 io::stdout().flush().unwrap_or(());
                 if let Some(mount) = scan_module_interactive(module)? {
-                    println!("{}", if mount.verified { "✅" } else { "⚠️  unverified" });
+                    println!(
+                        "{}",
+                        if mount.verified {
+                            "✅"
+                        } else {
+                            "⚠️  unverified"
+                        }
+                    );
                     mounts.push(mount);
                 }
             }

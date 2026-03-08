@@ -1,9 +1,9 @@
-use anyhow::{bail, Result};
-use std::env;
-use std::path::PathBuf;
-use crate::sandbox::builder::{build_bwrap, apply_environment};
+use crate::sandbox::builder::{apply_environment, build_bwrap};
 use crate::sandbox::mounts::{apply_system_mounts, apply_user_mounts};
 use crate::scanner::integrity_check;
+use anyhow::{Result, bail};
+use std::env;
+use std::path::PathBuf;
 
 /// Builds and executes the bubblewrap sandbox.
 ///
@@ -21,7 +21,7 @@ pub fn run_sandboxed(
     network: bool,
     dry_run: bool,
     gui: bool,
-    optional: Vec<String>
+    optional: Vec<String>,
 ) -> Result<()> {
     println!("Checking for Core Dependancy: Bwrap...");
     // Check bwrap is installed before doing anything else.
@@ -74,7 +74,8 @@ pub fn run_sandboxed(
     apply_environment(&mut bwrap, gui);
 
     bwrap
-        .arg("--chdir").arg(&project_dir)
+        .arg("--chdir")
+        .arg(&project_dir)
         .arg("--") // end of bwrap args
         .args(&cmd);
 

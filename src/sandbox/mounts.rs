@@ -1,22 +1,33 @@
-use std::process::Command;
 use crate::config::SystemConfig;
+use std::process::Command;
 
 pub fn apply_system_mounts(
     bwrap: &mut Command,
     system_config: &SystemConfig,
     network: bool,
     gui: bool,
-    optional: &[String]
+    optional: &[String],
 ) {
     // --- Apply dynamic mounts from system.toml ---
     for mount in &system_config.mounts {
-        if !mount.verified { continue; } // skip unverified modules
-        if mount.when == "network" && !network { continue; }
-        if mount.when == "gui" && !gui { continue; }
+        if !mount.verified {
+            continue;
+        } // skip unverified modules
+        if mount.when == "network" && !network {
+            continue;
+        }
+        if mount.when == "gui" && !gui {
+            continue;
+        }
         if mount.when == "optional" {
-            if !optional.contains(&mount.name) { continue; }
+            if !optional.contains(&mount.name) {
+                continue;
+            }
             if !mount.verified {
-                eprintln!("warning: --opt-in {} requested but module is unverified — skipping", mount.name);
+                eprintln!(
+                    "warning: --opt-in {} requested but module is unverified — skipping",
+                    mount.name
+                );
                 continue;
             }
         }
@@ -50,7 +61,12 @@ pub fn apply_user_mounts(bwrap: &mut Command, dry_run: bool) {
                     "D" => {
                         println!("   Paths in cordon.toml:");
                         for m in &user_config.mounts {
-                            println!("     {} {} ({})", if m.mode == "rw" { "rw" } else { "ro" }, m.src, m.dest);
+                            println!(
+                                "     {} {} ({})",
+                                if m.mode == "rw" { "rw" } else { "ro" },
+                                m.src,
+                                m.dest
+                            );
                         }
                         // loop again to ask
                     }
@@ -63,7 +79,11 @@ pub fn apply_user_mounts(bwrap: &mut Command, dry_run: bool) {
 
         if apply {
             for mount in &user_config.mounts {
-                let arg_flag = if mount.mode == "rw" { "--bind" } else { "--ro-bind" };
+                let arg_flag = if mount.mode == "rw" {
+                    "--bind"
+                } else {
+                    "--ro-bind"
+                };
                 bwrap.arg(arg_flag).arg(&mount.src).arg(&mount.dest);
             }
         }

@@ -45,18 +45,20 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Run { cmd, network, dry_run, gui, optional } => {
-            sandbox::run_sandboxed(cmd, network, dry_run, gui, optional)
-        }
+        Commands::Run {
+            cmd,
+            network,
+            dry_run,
+            gui,
+            optional,
+        } => sandbox::run_sandboxed(cmd, network, dry_run, gui, optional),
 
         Commands::Scan {} => {
             // scanner::full_scan() prints its own header — no need to print here
             scanner::full_scan()
         }
 
-        Commands::Add { path, mode } => {
-            config::add_user_mount(path, mode)
-        }
+        Commands::Add { path, mode } => config::add_user_mount(path, mode),
     };
 
     if let Err(e) = result {

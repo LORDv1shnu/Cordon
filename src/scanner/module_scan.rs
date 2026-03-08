@@ -1,22 +1,29 @@
-use anyhow::Result;
+use super::env_resolver::resolve_env_vars;
 use crate::config::{CoreModule, MountEntry};
+use anyhow::Result;
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
-use super::env_resolver::resolve_env_vars;
 
 /// When a required module is not found at its default path, ask the user
 /// for a corrected path. Returns None if the user presses Enter (skips it).
 fn ask_for_path(module_name: &str, tried_path: &str) -> Option<String> {
     println!();
     println!("     Not found at: {}", tried_path);
-    println!("     Enter a corrected path for '{}', or press Enter to skip:", module_name);
+    println!(
+        "     Enter a corrected path for '{}', or press Enter to skip:",
+        module_name
+    );
     print!("     > ");
     io::stdout().flush().unwrap_or(());
     let mut input = String::new();
     io::stdin().read_line(&mut input).unwrap_or(0);
     let trimmed = input.trim().to_string();
-    if trimmed.is_empty() { None } else { Some(trimmed) }
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
 }
 
 /// Scan a single module interactively.
@@ -67,7 +74,11 @@ pub fn scan_module_at(module: &CoreModule, dir: &str) -> Result<Option<MountEntr
             name: module.name.clone(),
             src: dir.to_string(),
             dest,
-            bind_type: if module.mode == "rw" { "bind".to_string() } else { "ro-bind".to_string() },
+            bind_type: if module.mode == "rw" {
+                "bind".to_string()
+            } else {
+                "ro-bind".to_string()
+            },
             mode: module.mode.clone(),
             when: module.when.clone(),
             required: module.required,
@@ -89,7 +100,9 @@ pub fn scan_module_at(module: &CoreModule, dir: &str) -> Result<Option<MountEntr
             path.parent().unwrap_or(Path::new("/")).join(&raw_target)
         };
 
-        let verified = module.required_files.iter()
+        let verified = module
+            .required_files
+            .iter()
             .all(|f| resolved_target.join(f).exists());
 
         return Ok(Some(MountEntry {
@@ -105,14 +118,17 @@ pub fn scan_module_at(module: &CoreModule, dir: &str) -> Result<Option<MountEntr
     }
 
     // ── REAL DIRECTORY: e.g. /usr, /etc/ssl/certs on most distros
-    let verified = module.required_files.iter()
-        .all(|f| path.join(f).exists());
+    let verified = module.required_files.iter().all(|f| path.join(f).exists());
 
     Ok(Some(MountEntry {
         name: module.name.clone(),
         src: dir.to_string(),
         dest,
-        bind_type: if module.mode == "rw" { "bind".to_string() } else { "ro-bind".to_string() },
+        bind_type: if module.mode == "rw" {
+            "bind".to_string()
+        } else {
+            "ro-bind".to_string()
+        },
         mode: module.mode.clone(),
         when: module.when.clone(),
         required: module.required,

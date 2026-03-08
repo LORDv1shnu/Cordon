@@ -28,9 +28,9 @@
 //! └─────────────────────────────────────────────────────────────────────┘
 
 pub mod env_resolver;
-pub mod module_scan;
 pub mod full_scan;
 pub mod integrity;
+pub mod module_scan;
 
 pub use full_scan::full_scan;
 pub use integrity::integrity_check;

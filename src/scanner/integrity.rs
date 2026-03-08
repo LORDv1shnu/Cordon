@@ -1,10 +1,10 @@
-use anyhow::{bail, Context, Result};
+use super::CORE_TOML;
+use super::full_scan::full_scan;
 use crate::config::{CoreConfig, SystemConfig};
+use anyhow::{Context, Result, bail};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use super::full_scan::full_scan;
-use super::CORE_TOML;
 
 /// Integrity check — runs before every `cordon run`.
 ///
@@ -76,12 +76,10 @@ pub fn integrity_check(network: bool, gui: bool) -> Result<SystemConfig> {
     //   - User hand-edited system.toml and added a custom path
     //   - File was tampered with
     // Either way: hard block. Custom mounts belong in cordon.toml (user.toml).
-    let core: CoreConfig = toml::from_str(CORE_TOML)
-        .context("Failed to parse embedded core.toml")?;
+    let core: CoreConfig =
+        toml::from_str(CORE_TOML).context("Failed to parse embedded core.toml")?;
 
-    let core_names: HashSet<&str> = core.modules.iter()
-        .map(|m| m.name.as_str())
-        .collect();
+    let core_names: HashSet<&str> = core.modules.iter().map(|m| m.name.as_str()).collect();
 
     for mount in &config.mounts {
         if !core_names.contains(mount.name.as_str()) {
@@ -154,7 +152,11 @@ pub fn integrity_check(network: bool, gui: bool) -> Result<SystemConfig> {
     // "In system.toml but unverified" means the path existed at scan time but
     // the required files inside it were missing — also needs fixing.
     if network {
-        for core_mod in core.modules.iter().filter(|m| m.when == "network" && m.required) {
+        for core_mod in core
+            .modules
+            .iter()
+            .filter(|m| m.when == "network" && m.required)
+        {
             match config.mounts.iter().find(|m| m.name == core_mod.name) {
                 None => bail!(
                     "❌ --network requires module '{}' but it is not in system.toml.\n\
@@ -165,7 +167,8 @@ pub fn integrity_check(network: bool, gui: bool) -> Result<SystemConfig> {
                     "❌ --network requires module '{}' but it failed verification.\n\
                      Impact: {}\n\
                      Re-run `cordon scan` to fix.",
-                    core_mod.name, core_mod.functionality
+                    core_mod.name,
+                    core_mod.functionality
                 ),
                 _ => {} // present and verified ✅
             }
@@ -177,7 +180,11 @@ pub fn integrity_check(network: bool, gui: bool) -> Result<SystemConfig> {
     // Same logic as network. Required GUI modules must be in system.toml
     // and verified. If not, the user needs to re-scan with GUI support enabled.
     if gui {
-        for core_mod in core.modules.iter().filter(|m| m.when == "gui" && m.required) {
+        for core_mod in core
+            .modules
+            .iter()
+            .filter(|m| m.when == "gui" && m.required)
+        {
             match config.mounts.iter().find(|m| m.name == core_mod.name) {
                 None => bail!(
                     "❌ --gui requires module '{}' but it is not in system.toml.\n\
@@ -188,7 +195,8 @@ pub fn integrity_check(network: bool, gui: bool) -> Result<SystemConfig> {
                     "❌ --gui requires module '{}' but it failed verification.\n\
                      Impact: {}\n\
                      Re-run `cordon scan` to fix.",
-                    core_mod.name, core_mod.functionality
+                    core_mod.name,
+                    core_mod.functionality
                 ),
                 _ => {} // present and verified ✅
             }

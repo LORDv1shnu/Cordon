@@ -20,7 +20,7 @@
 //! Sandbox setup failures (bwrap missing, scan error, etc.) produce exit 125.
 
 pub mod builder;
-pub mod mounts;
 pub mod executor;
+pub mod mounts;
 
 pub use executor::run_sandboxed;

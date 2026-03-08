@@ -5,10 +5,10 @@
 //!   - system.toml (scanner output, read/written as SystemConfig)
 //!   - cordon.toml (user-defined mounts, read/written as UserConfig)
 
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use anyhow::{Result, Context};
 use std::fs;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 
 /// A single module entry from core.toml (the embedded blueprint).
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -85,6 +85,7 @@ pub fn get_config_dir() -> Result<PathBuf> {
 }
 
 /// Reads and parses system.toml from ~/.config/cordon/.
+#[allow(dead_code)]
 pub fn load_system_config() -> Result<SystemConfig> {
     let path = get_config_dir()?.join("system.toml");
     let content = fs::read_to_string(path)?;
@@ -96,18 +97,19 @@ pub fn load_system_config() -> Result<SystemConfig> {
 pub fn save_system_config(config: &SystemConfig) -> Result<()> {
     let path = get_config_dir()?.join("system.toml");
     let content = toml::to_string_pretty(config)?;
-    
+
     let file = fs::OpenOptions::new()
         .write(true)
         .create(true)
+        .truncate(false)
         .open(&path)?;
-    
+
     let mut lock = fd_lock::RwLock::new(file);
     let mut write_guard = lock.write()?;
     write_guard.set_len(0)?; // truncate
     use std::io::Write;
     write_guard.write_all(content.as_bytes())?;
-    
+
     Ok(())
 }
 
@@ -126,7 +128,7 @@ pub fn find_user_config() -> Result<Option<UserConfig>> {
             break;
         }
         // Don't go outside home directory if possible
-        if current == PathBuf::from("/") {
+        if current == std::path::Path::new("/") {
             break;
         }
     }
@@ -138,7 +140,7 @@ pub fn find_user_config() -> Result<Option<UserConfig>> {
 pub fn add_user_mount(path: String, mode: String) -> Result<()> {
     let mut config = find_user_config()?.unwrap_or_default();
     let dest = format!("/project/{}", path.trim_start_matches('/'));
-    
+
     config.mounts.push(UserMount {
         src: path,
         dest,
