@@ -30,20 +30,20 @@ Fully rewritten with two-mode architecture:
 - `resolve_env_vars()` — resolves `/run/user/1000` → real `$XDG_RUNTIME_DIR` at scan time
 - File lock on system.toml during write via `fd-lock` crate
 
-### Task 3 — Link Scanner to sandbox.rs ✅ Done
-`sandbox.rs` is fully config-driven:
+### Task 3 — Link Scanner to sandbox module ✅ Done
+`sandbox module` is fully config-driven:
 - Calls `crate::scanner::integrity_check(network, gui)` to get `SystemConfig`
 - Iterates `system_config.mounts`, skips unverified, filters by `when` field
 - Applies `--{bind_type} src dest` for each mount (ro-bind, bind, symlink)
 - Reads user.toml via `crate::config::find_user_config()`
 - Forwards child process exit codes via encoded `bail!("exit code: N")`
-- No hardcoded paths remain in sandbox.rs
+- No hardcoded paths remain in sandbox module
 
 ---
 
 ## ✅ Phase 2.5 Priority Tasks (Completed)
 
-### Task 4 — Cleanup: Remove Stale Comment in sandbox.rs ✅ Done
+### Task 4 — Cleanup: Remove Stale Comment in sandbox module ✅ Done
 Doc comment on `run_sandboxed()` updated. No longer references hardcoded paths.
 Now accurately describes the config-driven flow: integrity_check → system mounts →
 user mounts (with confirmation) → env passthrough → execute.
@@ -85,7 +85,7 @@ The `dbus_session` module already exists in core.toml. What the scanner is still
 - Strip the `unix:path=` prefix to extract the real socket file path
 - Verify the socket file exists on disk
 - Store real path in system.toml under `dbus_session`, `bind_type = "ro-bind"` (it's a socket file, not a device node)
-- sandbox.rs must forward `DBUS_SESSION_BUS_ADDRESS` via `--setenv` when `dbus` is in the `--optional` list
+- sandbox module must forward `DBUS_SESSION_BUS_ADDRESS` via `--setenv` when `dbus` is in the `--optional` list
 
 This is scanner work because it follows the same resolve-at-scan-time pattern as `$XDG_RUNTIME_DIR`.
 
@@ -101,7 +101,7 @@ not `--ro-bind` — bwrap treats them differently. The scanner must handle this 
 - Add `"dev-bind"` as a valid `bind_type` value in `MountEntry` in `config.rs`
 - In `full_scan()`: detect `/dev/dri/` — check it exists, list device nodes (card0, renderD128, etc.)
 - Store in system.toml with `bind_type = "dev-bind"`
-- In sandbox.rs mount loop: handle `--dev-bind src dest` for this bind_type
+- In sandbox module mount loop: handle `--dev-bind src dest` for this bind_type
 
 This is scanner + config work because it introduces a new bind_type the scanner must produce and sandbox must consume.
 
@@ -115,7 +115,7 @@ The audio modules already exist in core.toml. What the scanner is still missing:
 - Find the actual socket file (e.g. `pipewire-0`, `pulse/native`) in that directory
 - Verify the socket file exists on disk
 - Store the real path in system.toml under the appropriate audio module, `bind_type = "ro-bind"`
-- sandbox.rs must forward the correct env var via `--setenv` when `audio` is in the `--optional` list
+- sandbox module must forward the correct env var via `--setenv` when `audio` is in the `--optional` list
 
 This is scanner work, following the same resolve-at-scan-time pattern as D-Bus and XDG_RUNTIME_DIR.
 
@@ -590,7 +590,7 @@ When a `when = "network"` module fails verification during full scan:
 - [x] Main Scanner: partial re-run — only re-check affected module, never overwrite passing entries
 - [x] Auto-trigger full scan on first `cordon run` (system.toml missing/empty)
 - [x] Auto-trigger integrity check on verification error at runtime
-- [x] Replace hardcoded bwrap paths in `sandbox.rs` with entries read from system.toml + user.toml
+- [x] Replace hardcoded bwrap paths in `sandbox module` with entries read from system.toml + user.toml
 - [x] Wire `find_user_config()` into sandbox execution path (user.toml global mounts)
 - [x] Update system.toml location: per-project `./system.toml` in cwd
 - [x] Update user.toml location: global `~/.config/cordon/user.toml`
