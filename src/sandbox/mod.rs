@@ -1,4 +1,4 @@
-//! sandbox.rs
+//! sandbox module
 //!
 //! Responsible for building and executing the bubblewrap sandbox.
 //!
