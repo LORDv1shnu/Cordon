@@ -23,11 +23,11 @@ pub fn run_sandboxed(
     gui: bool,
     optional: Vec<String>,
 ) -> Result<()> {
-    println!("Checking for Core Dependancy: Bwrap...");
-    // Check bwrap is installed before doing anything else.
-    // If missing, exit 125 (sandbox setup failed — matches bwrap/shell convention).
-    if std::process::Command::new("which")
-        .arg("bwrap")
+    println!("Checking for core dependency: bwrap...");
+    // Verify bwrap is installed before doing anything else.
+    // Failure here exits 125, matching bwrap's own convention for setup errors.
+    if std::process::Command::new("bwrap")
+        .arg("--version")
         .output()
         .map(|o| !o.status.success())
         .unwrap_or(true)

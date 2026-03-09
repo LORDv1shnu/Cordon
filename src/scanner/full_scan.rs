@@ -59,14 +59,18 @@ pub fn full_scan() -> Result<()> {
         print!("  Scanning {:20} ... ", module.name);
         io::stdout().flush().unwrap_or(());
         if let Some(mount) = scan_module_interactive(module)? {
-            println!(
-                "{}",
-                if mount.verified {
-                    "✅"
-                } else {
-                    "⚠️  unverified"
+            if mount.verified {
+                println!("✅");
+            } else {
+                println!("⚠️  unverified");
+                if module.required {
+                    println!(
+                        "  ⛔ WARNING: '{}' is required. Sandbox will not start without it.",
+                        module.name
+                    );
+                    println!("     Re-run `cordon scan` and provide the correct path.");
                 }
-            );
+            }
             mounts.push(mount);
         }
     }
