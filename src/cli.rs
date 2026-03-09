@@ -6,9 +6,12 @@ use clap::{Parser, Subcommand};
 #[derive(Parser)]
 #[command(name = "cordon")]
 #[command(version = "0.1.0")] // Added version
-#[command(about = "Lightweight filesystem sandbox for Linux", long_about = "Cordon is a lightweight, per-execution filesystem sandbox for Linux using bubblewrap. \
+#[command(
+    about = "Lightweight filesystem sandbox for Linux",
+    long_about = "Cordon is a lightweight, per-execution filesystem sandbox for Linux using bubblewrap. \
 It allows you to run potentially unsafe scripts or binaries with limited permissions, \
-restricting their view of the filesystem while keeping your project directory writable.")]
+restricting their view of the filesystem while keeping your project directory writable."
+)]
 #[command(arg_required_else_help = true)] // Show help if no subcommand is provided
 pub struct Cli {
     #[command(subcommand)]
@@ -33,7 +36,6 @@ pub enum Commands {
         /// When enabled, /etc and /run are mounted read-only for DNS resolution.
         #[arg(long, default_value_t = false)]
         network: bool,
-
 
         /// Show the bubblewrap command and exit without executing it.
         /// For debugging purposes, to see exactly what cordon is doing under the hood.

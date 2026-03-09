@@ -45,18 +45,20 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Run { cmd, network, dry_run, gui, optional } => {
-            sandbox::run_sandboxed(cmd, network, dry_run, gui, optional)
-        }
+        Commands::Run {
+            cmd,
+            network,
+            dry_run,
+            gui,
+            optional,
+        } => sandbox::run_sandboxed(cmd, network, dry_run, gui, optional),
 
         Commands::Scan {} => {
             // scanner::full_scan() prints its own header — no need to print here
             scanner::full_scan()
         }
 
-        Commands::Add { path, mode } => {
-            config::add_user_mount(path, mode)
-        }
+        Commands::Add { path, mode } => config::add_user_mount(path, mode),
     };
 
     if let Err(e) = result {
@@ -72,7 +74,7 @@ fn main() {
 /// Extracts a forwarded process exit code from an anyhow error chain,
 /// if the error was produced by sandbox::run_sandboxed propagating it.
 fn extract_exit_code(e: &anyhow::Error) -> Option<i32> {
-    // sandbox.rs encodes the child exit code in the error message as
+    // sandbox module encodes the child exit code in the error message as
     // "exit code: N" so we can recover and forward it here.
     let msg = format!("{e}");
     if let Some(rest) = msg.strip_prefix("exit code: ") {

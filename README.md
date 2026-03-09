@@ -53,6 +53,27 @@ No root required. No system-wide config. No containers.
 
 bwrap reads only from `system.toml` and `cordon.toml`. The config files themselves are never exposed inside the sandbox.
 
+### Source Layout
+The repository is structured into modular components:
+
+```
+src/
+ ├── main.rs
+ ├── cli.rs
+ ├── config.rs
+ ├── scanner/
+ │   ├── mod.rs
+ │   ├── full_scan.rs
+ │   ├── integrity.rs
+ │   ├── module_scan.rs
+ │   └── env_resolver.rs
+ └── sandbox/
+     ├── mod.rs
+     ├── builder.rs
+     ├── mounts.rs
+     └── executor.rs
+```
+
 ---
 
 ## What Cordon Is NOT
@@ -113,7 +134,7 @@ cordon add /path/to/dir --mode rw
 | Narrowed `/etc` exposure — only bind specific files for network mode | ✅ Done |
 | Bwrap not installed detection — clear error with install instructions | ✅ Done |
 | Clean CLI output and UX polish | ✅ Done |
-| Refactor: split into cli.rs, sandbox.rs, scanner.rs, config.rs | ✅ Done |
+| Refactor: split into cli.rs, sandbox module, scanner module, config.rs | ✅ Done |
 
 ---
 
@@ -175,7 +196,7 @@ bwrap reads **only** from `system.toml` and `user.toml`. Config files themselves
 
 | Feature | Status | Notes |
 |---|---|---|
-| Remove stale sandbox.rs doc comment | ✅ Done | Doc comment now reflects config-driven flow |
+| Remove stale sandbox module doc comment | ✅ Done | Doc comment now reflects config-driven flow |
 | `--optional <module>` flag for optional modules | ✅ Done | Mounts only if in system.toml and verified |
 | `cordon add` command wired to `add_user_mount()` | ✅ Done | Writes to per-project cordon.toml |
 | Environment variable passthrough (`HOME`, `USER`, `LANG`, `PATH`, `XDG_*`) | ✅ Done | Forwarded via `--setenv` for each safe var |
@@ -192,9 +213,9 @@ These are scanner-level tasks — each one follows the same resolve-at-scan-time
 
 | Feature | Status | Notes |
 |---|---|---|
-| D-Bus socket path resolution at scan time | 🔴 Pending | Read `$DBUS_SESSION_BUS_ADDRESS`, strip `unix:path=` prefix, verify socket exists, store in system.toml. sandbox.rs forwards `DBUS_SESSION_BUS_ADDRESS` via `--setenv` when `--optional dbus` is used |
-| GPU/DRI device node detection (`bind_type = "dev-bind"`) | 🔴 Pending | Detect `/dev/dri/` device nodes (card0, renderD128). Add `dev-bind` as valid `bind_type` in `MountEntry`. sandbox.rs applies `--dev-bind` in mount loop |
-| Audio socket path resolution at scan time | 🔴 Pending | Resolve `$PIPEWIRE_RUNTIME_DIR` / `$PULSE_RUNTIME_PATH` at scan time, same pattern as D-Bus. sandbox.rs forwards socket env var when `--optional audio` used |
+| D-Bus socket path resolution at scan time | 🔴 Pending | Read `$DBUS_SESSION_BUS_ADDRESS`, strip `unix:path=` prefix, verify socket exists, store in system.toml. sandbox module forwards `DBUS_SESSION_BUS_ADDRESS` via `--setenv` when `--optional dbus` is used |
+| GPU/DRI device node detection (`bind_type = "dev-bind"`) | 🔴 Pending | Detect `/dev/dri/` device nodes (card0, renderD128). Add `dev-bind` as valid `bind_type` in `MountEntry`. sandbox module applies `--dev-bind` in mount loop |
+| Audio socket path resolution at scan time | 🔴 Pending | Resolve `$PIPEWIRE_RUNTIME_DIR` / `$PULSE_RUNTIME_PATH` at scan time, same pattern as D-Bus. sandbox module forwards socket env var when `--optional audio` used |
 
 ---
 
@@ -287,7 +308,7 @@ This project was built with AI assistance (GitHub Copilot / Claude). In the inte
 
 **AI-assisted contributions:**
 - Writing and iterating on Rust implementation code
-- Translating design decisions into working code (scanner.rs rewrite, sandbox.rs wiring)
+- Translating design decisions into working code (scanner module rewrite, sandbox module wiring)
 - Boilerplate and struct definitions
 - Documentation comments
 
