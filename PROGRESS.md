@@ -109,6 +109,83 @@ All completed work and planned work lives here.
 
 ---
 
+### Phase 2.7 — Project Profile (Default Run Mode) `[PLANNED]`
+
+**`cordon.toml` Flag Storage**
+- Add `network`, `gui`, and `optional` fields to `UserConfig` in `config.rs`.
+- When `cordon run -- <cmd>` is invoked with no flags, read these fields from `cordon.toml` and apply them automatically.
+- CLI flags always override `cordon.toml` values — explicit beats implicit.
+- `cordon.toml` with flags example:
+  ```toml
+  network = true
+  gui = true
+  optional = ["audio_pipewire", "dbus_session"]
+
+  [[mount]]
+  src = "/home/user/assets"
+  dest = "/home/user/assets"
+  mode = "ro"
+  ```
+- Update `apply_user_mounts()` in `mounts.rs` and flag resolution in `executor.rs` to merge these values.
+- This enables: `cordon run -- discord` with no flags, if `cordon.toml` declares what it needs.
+
+---
+
+### Phase 2.8 — Named Profiles `[PLANNED]`
+
+**`cordon profile` Subcommand**
+- New subcommand: `cordon profile create <name> [--network] [--gui] [--optional <mod>]`
+- Profiles stored in `~/.config/cordon/profiles.toml` as named blocks:
+  ```toml
+  [profile.NO_NET]
+  network = false
+  gui = false
+  optional = []
+
+  [profile.GUI_APP]
+  network = true
+  gui = true
+  optional = ["audio_pipewire", "dbus_session"]
+  ```
+- `cordon run --profile <name> -- <cmd>` loads the named profile, then applies CLI flag overrides on top.
+- `cordon profile list` — prints all defined profiles with their settings.
+- `cordon profile delete <name>` — removes a profile.
+- Add `ProfileConfig` struct to `config.rs`. Wire `profile` subcommand into `cli.rs` and `main.rs`.
+- Profile resolution order (lowest → highest priority): built-in defaults → profile → `cordon.toml` → CLI flags.
+
+---
+
+### Phase 2.9 — Error Taxonomy `[PLANNED]`
+
+**Named Error Types and Actionable Messages**
+
+Current state: most errors collapse into generic anyhow chains and exit 125 or 1 with no guidance.
+
+Target: every error category has a distinct exit code, a clear one-line cause, and an actionable fix hint.
+
+| Category | Current | Target exit | Example message |
+|----------|---------|-------------|-----------------|
+| bwrap not installed | exit 125, generic | 125 | `[cordon] bwrap not found. Install: sudo apt install bubblewrap` |
+| `system.toml` missing | silent re-scan | 0 (auto-heals) | `[cordon] No system scan found — running first-time scan...` |
+| `system.toml` malformed | silent re-scan | 0 (auto-heals) | `[cordon] system.toml is corrupt — re-running scan...` |
+| Foreign entry in `system.toml` | exit 1 | 125 | `[cordon] Security: unknown module "evil" in system.toml. Run: cordon scan` |
+| Required module unverified | exit 1 | 125 | `[cordon] Required module "lib" is unverified. Run: cordon scan` |
+| `--network` gate fail | exit 1 | 125 | `[cordon] Network requested but "dns_resolution" unverified. Run: cordon scan` |
+| `--gui` gate fail | exit 1 | 125 | `[cordon] GUI requested but "x11_socket" unverified. Run: cordon scan` |
+| `cordon.toml` parse error | warning, continues | 1 | `[cordon] cordon.toml is malformed: <reason>. Fix or delete it.` |
+| bwrap exits non-zero | exit 1 | N (forwarded) | `[cordon] Sandbox exited with code N` |
+| Command not found in sandbox | exit 1 | 127 | `[cordon] Command not found inside sandbox: <cmd>` |
+| Command not executable | exit 1 | 126 | `[cordon] Command not executable inside sandbox: <cmd>` |
+| Profile not found | — | 1 | `[cordon] Profile "FOO" not found. Run: cordon profile list` |
+
+Implementation:
+- Introduce a `CordonError` enum in a new `src/error.rs` (or inline in `main.rs`) with variants for each category.
+- Each variant carries a user-facing message + fix hint, printed to stderr before exit.
+- Replace scattered `bail!` / `eprintln!` calls in `executor.rs`, `integrity.rs`, `mounts.rs` with typed variants.
+- bwrap stderr captured and inspected to detect 126 vs 127 (command not executable vs not found).
+
+---
+
 ### Phase 3 — Observability `[PLANNED]`
 
 **`cordon status` Command**
