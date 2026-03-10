@@ -36,7 +36,7 @@ pub struct MountEntry {
     pub name: String,
     pub src: String,
     pub dest: String,
-    pub bind_type: String, // "ro-bind" or "symlink"
+    pub bind_type: String, // "ro-bind", "symlink", "bind", or "dev-bind"
     pub mode: String,
     pub when: String,
     pub required: bool,

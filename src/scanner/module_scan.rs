@@ -92,7 +92,9 @@ pub fn scan_module_at(module: &CoreModule, dir: &str) -> Result<Option<MountEntr
             name: module.name.clone(),
             src: dir.to_string(),
             dest,
-            bind_type: if module.mode == "rw" {
+            bind_type: if module.name == "gpu_dri" {
+                "dev-bind".to_string()
+            } else if module.mode == "rw" {
                 "bind".to_string()
             } else {
                 "ro-bind".to_string()
@@ -142,7 +144,9 @@ pub fn scan_module_at(module: &CoreModule, dir: &str) -> Result<Option<MountEntr
         name: module.name.clone(),
         src: dir.to_string(),
         dest,
-        bind_type: if module.mode == "rw" {
+        bind_type: if module.name == "gpu_dri" {
+            "dev-bind".to_string()
+        } else if module.mode == "rw" {
             "bind".to_string()
         } else {
             "ro-bind".to_string()

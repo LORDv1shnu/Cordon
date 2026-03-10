@@ -75,6 +75,7 @@ All completed work and planned work lives here.
 |---------|-------|
 | D-Bus socket resolution at scan time | `resolve_dbus_socket()` in `env_resolver.rs` — reads `$DBUS_SESSION_BUS_ADDRESS`, strips `unix:path=` prefix, falls back to `$XDG_RUNTIME_DIR/bus` |
 | `dbus_session` special-case in scanner | `scan_module_interactive()` calls `resolve_dbus_socket()` before the generic resolver |
+| GPU/DRI device node support | Added `dev-bind` to `MountEntry` and `scan_module_at()`, wiring in `gpu_dri` for GPU hardware acceleration |
 
 ---
 
@@ -94,12 +95,6 @@ All completed work and planned work lives here.
 ## Pending
 
 ### Phase 2.6 — Scanner Completion `[IN PROGRESS]`
-
-**GPU/DRI Device Node Support**
-- Detect `/dev/dri/` device nodes (`card0`, `renderD128`) at scan time.
-- Add `"dev-bind"` as a valid `bind_type` in `MountEntry` and the bwrap mount loop in `mounts.rs`.
-- `gpu_dri` module already exists in `core.toml` — scanner and sandbox just need `dev-bind` wired in.
-- Without this: GPU acceleration unavailable, apps fall back to slow software rendering (llvmpipe).
 
 **Audio Socket Resolution at Scan Time**
 - Resolve `$PIPEWIRE_RUNTIME_DIR` / `$PULSE_RUNTIME_PATH` at scan time, same pattern as `resolve_dbus_socket()`.
