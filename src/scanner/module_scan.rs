@@ -1,4 +1,6 @@
-use super::env_resolver::{resolve_dbus_socket, resolve_env_vars, resolve_pipewire_socket, resolve_pulse_socket};
+use super::env_resolver::{
+    resolve_dbus_socket, resolve_env_vars, resolve_pipewire_socket, resolve_pulse_socket,
+};
 use crate::config::{CoreModule, MountEntry};
 use anyhow::Result;
 use std::fs;
@@ -19,7 +21,11 @@ fn ask_for_path(module_name: &str, tried_path: &str) -> Option<String> {
     let mut input = String::new();
     io::stdin().read_line(&mut input).unwrap_or(0);
     let trimmed = input.trim().to_string();
-    if trimmed.is_empty() { None } else { Some(trimmed) }
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
 }
 
 /// Scan a single module interactively.
@@ -56,21 +62,22 @@ pub fn scan_module_interactive(module: &CoreModule) -> Result<Option<MountEntry>
             // If the user's `$PIPEWIRE_RUNTIME_DIR` is different, let's just make `scan_module_at` use the socket directly.
             // But let's check core.toml definition. dbus_session mounts the *parent* dir because it specifies `$XDG_RUNTIME_DIR` as `default_dir` and `bus` as `required_files`!
             // Wait, for `audio_pipewire`: `default_dir` is the socket path directly (no required files). So we pass the exact socket file path as `actual_dir`.
-            
+
             return scan_module_at(module, &socket_path);
         }
     } else if module.name == "audio_pulse"
-        && let Some(socket_path) = resolve_pulse_socket() {
-            // "audio_pulse" in core.toml:
-            // default_dir = "/run/user/1000/pulse"
-            // required_files = ["native"]
-            // This means `socket_path` (which points to `native`) is inside the dir we should mount.
-            let parent = Path::new(&socket_path)
-                .parent()
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(|| socket_path.clone());
-            return scan_module_at(module, &parent);
-        }
+        && let Some(socket_path) = resolve_pulse_socket()
+    {
+        // "audio_pulse" in core.toml:
+        // default_dir = "/run/user/1000/pulse"
+        // required_files = ["native"]
+        // This means `socket_path` (which points to `native`) is inside the dir we should mount.
+        let parent = Path::new(&socket_path)
+            .parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| socket_path.clone());
+        return scan_module_at(module, &parent);
+    }
 
     let resolved_dir = resolve_env_vars(&module.default_dir);
 

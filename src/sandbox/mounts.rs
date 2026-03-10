@@ -87,7 +87,11 @@ pub fn apply_user_mounts(bwrap: &mut Command, dry_run: bool) {
 
     if apply {
         for mount in &user_config.mounts {
-            let arg_flag = if mount.mode == "rw" { "--bind" } else { "--ro-bind" };
+            let arg_flag = if mount.mode == "rw" {
+                "--bind"
+            } else {
+                "--ro-bind"
+            };
             bwrap.arg(arg_flag).arg(&mount.src).arg(&mount.dest);
         }
     }

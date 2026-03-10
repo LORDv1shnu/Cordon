@@ -90,10 +90,10 @@ pub fn get_config_dir() -> Result<PathBuf> {
 #[allow(dead_code)]
 pub fn load_system_config() -> Result<SystemConfig> {
     let path = get_config_dir()?.join("system.toml");
-    let content = fs::read_to_string(&path)
-        .with_context(|| format!("Failed to read {}", path.display()))?;
-    let config: SystemConfig = toml::from_str(&content)
-        .with_context(|| format!("Failed to parse {}", path.display()))?;
+    let content =
+        fs::read_to_string(&path).with_context(|| format!("Failed to read {}", path.display()))?;
+    let config: SystemConfig =
+        toml::from_str(&content).with_context(|| format!("Failed to parse {}", path.display()))?;
     Ok(config)
 }
 
@@ -123,8 +123,8 @@ pub fn save_system_config(config: &SystemConfig) -> Result<()> {
 /// We stop at `/` explicitly rather than relying on `pop()` returning false
 /// so that we never accidentally pick up a stray cordon.toml at the root.
 pub fn find_user_config() -> Result<Option<UserConfig>> {
-    let mut current = std::env::current_dir()
-        .context("Cannot determine current working directory")?;
+    let mut current =
+        std::env::current_dir().context("Cannot determine current working directory")?;
     loop {
         let config_path = current.join("cordon.toml");
         if config_path.exists() {
@@ -152,8 +152,7 @@ pub fn add_user_mount(path: String, mode: String) -> Result<()> {
 
     // Use the canonical absolute path as both src and dest so the mount
     // appears at the same location inside the sandbox.
-    let abs_path = std::fs::canonicalize(&path)
-        .unwrap_or_else(|_| std::path::PathBuf::from(&path));
+    let abs_path = std::fs::canonicalize(&path).unwrap_or_else(|_| std::path::PathBuf::from(&path));
     let abs_str = abs_path.to_string_lossy().to_string();
 
     config.mounts.push(UserMount {
@@ -164,10 +163,8 @@ pub fn add_user_mount(path: String, mode: String) -> Result<()> {
         required: false,
     });
 
-    let content = toml::to_string_pretty(&config)
-        .context("Failed to serialise cordon.toml")?;
-    fs::write("cordon.toml", content)
-        .context("Failed to write cordon.toml")?;
+    let content = toml::to_string_pretty(&config).context("Failed to serialise cordon.toml")?;
+    fs::write("cordon.toml", content).context("Failed to write cordon.toml")?;
     println!("✅ Added mount to cordon.toml");
     Ok(())
 }

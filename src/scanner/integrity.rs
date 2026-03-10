@@ -145,7 +145,11 @@ pub fn integrity_check(network: bool, gui: bool) -> Result<SystemConfig> {
     // If any of them ended up unverified (path never existed or user skipped),
     // there is no point starting bwrap — it will fail immediately. Hard block
     // with a clear message pointing the user at `cordon scan`.
-    for core_mod in core.modules.iter().filter(|m| m.when == "always" && m.required) {
+    for core_mod in core
+        .modules
+        .iter()
+        .filter(|m| m.when == "always" && m.required)
+    {
         match config.mounts.iter().find(|m| m.name == core_mod.name) {
             None => bail!(
                 "Required module '{}' is missing from system.toml.\n\
@@ -168,7 +172,11 @@ pub fn integrity_check(network: bool, gui: bool) -> Result<SystemConfig> {
     // Required network modules must be present AND verified. If missing, the
     // user needs to re-scan and answer 'y' to network support.
     if network {
-        for core_mod in core.modules.iter().filter(|m| m.when == "network" && m.required) {
+        for core_mod in core
+            .modules
+            .iter()
+            .filter(|m| m.when == "network" && m.required)
+        {
             match config.mounts.iter().find(|m| m.name == core_mod.name) {
                 None => bail!(
                     "--network requires module '{}' but it is absent from system.toml.\n\
@@ -191,7 +199,11 @@ pub fn integrity_check(network: bool, gui: bool) -> Result<SystemConfig> {
     //
     // Same logic as network. Required GUI modules must be present and verified.
     if gui {
-        for core_mod in core.modules.iter().filter(|m| m.when == "gui" && m.required) {
+        for core_mod in core
+            .modules
+            .iter()
+            .filter(|m| m.when == "gui" && m.required)
+        {
             match config.mounts.iter().find(|m| m.name == core_mod.name) {
                 None => bail!(
                     "--gui requires module '{}' but it is absent from system.toml.\n\
