@@ -76,6 +76,8 @@ All completed work and planned work lives here.
 | D-Bus socket resolution at scan time | `resolve_dbus_socket()` in `env_resolver.rs` — reads `$DBUS_SESSION_BUS_ADDRESS`, strips `unix:path=` prefix, falls back to `$XDG_RUNTIME_DIR/bus` |
 | `dbus_session` special-case in scanner | `scan_module_interactive()` calls `resolve_dbus_socket()` before the generic resolver |
 | GPU/DRI device node support | Added `dev-bind` to `MountEntry` and `scan_module_at()`, wiring in `gpu_dri` for GPU hardware acceleration |
+| Audio socket resolution at scan time | `resolve_pipewire_socket()` and `resolve_pulse_socket()` in `env_resolver.rs` — reads `$PIPEWIRE_RUNTIME_DIR` / `$PULSE_RUNTIME_PATH`, falls back to `$XDG_RUNTIME_DIR` |
+| Audio modules special-case in scanner | `scan_module_interactive()` calls respective audio socket resolvers before generic resolver |
 
 ---
 
@@ -94,13 +96,7 @@ All completed work and planned work lives here.
 
 ## Pending
 
-### Phase 2.6 — Scanner Completion `[IN PROGRESS]`
-
-**Audio Socket Resolution at Scan Time**
-- Resolve `$PIPEWIRE_RUNTIME_DIR` / `$PULSE_RUNTIME_PATH` at scan time, same pattern as `resolve_dbus_socket()`.
-- Store the resolved socket path in `system.toml`.
-- `audio_pipewire` and `audio_pulse` modules already exist in `core.toml`.
-- Without this: audio socket path falls back to `/run/user/1000/pipewire-0`, which breaks on non-1000 UIDs.
+### Phase 2.6 — Scanner Completion `[COMPLETED]`
 
 ---
 
