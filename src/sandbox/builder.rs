@@ -10,6 +10,7 @@ pub fn build_bwrap(project_path: &str, network: bool, dry_run: bool) -> Command 
         "--unshare-pid",
         "--unshare-uts",
         "--unshare-cgroup",
+        "--clearenv",
         "--tmpfs",
         "/tmp",
         "--proc",
@@ -53,15 +54,34 @@ pub fn apply_environment(bwrap: &mut Command, gui: bool) {
         "USER",
         "LOGNAME",
         "LANG",
-        "LC_ALL",
+        "TERM",
         "PATH",
-        "XDG_RUNTIME_DIR",
-        "XDG_CONFIG_HOME",
-        "XDG_DATA_HOME",
-        "XDG_CACHE_HOME",
     ] {
         if let Ok(val) = std::env::var(var) {
             bwrap.arg("--setenv").arg(var).arg(val);
+        }
+    }
+
+    // Pass LC_* variables (locale settings) explicitly since they can't be listed individually
+    for (key, val) in std::env::vars() {
+        if key.starts_with("LC_") {
+            bwrap.arg("--setenv").arg(&key).arg(val);
+        }
+    }
+
+    // Optional: Pass XDG vars explicitly if needed for certain desktop interaction,
+    // although the instruction specifically excluded them by default. Keeping them
+    // only if GUI is true might make sense, or drop entirely as instructed.
+    if gui {
+        for var in [
+            "XDG_RUNTIME_DIR",
+            "XDG_CONFIG_HOME",
+            "XDG_DATA_HOME",
+            "XDG_CACHE_HOME",
+        ] {
+            if let Ok(val) = std::env::var(var) {
+                bwrap.arg("--setenv").arg(var).arg(val);
+            }
         }
     }
 }

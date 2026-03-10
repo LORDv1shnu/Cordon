@@ -238,6 +238,19 @@ required       = false
 # ==============================================================
 
 [[module]]
+name           = "home_config"
+# User's home directory. NOT exposed by default to prevent secret leakage
+# (e.g. ~/.ssh, ~/.aws). Use this only if the app needs access to user config
+# files outside of the project directory.
+description    = "User home directory — $HOME. Use for accessing user configuration."
+default_dir    = "$HOME"
+required_files = []
+functionality  = "Without this, the app cannot access files in your home directory."
+mode           = "rw"
+when           = "optional"
+required       = false
+
+[[module]]
 name           = "locale_files"
 # System locale/i18n data. Needed for correct display of non-ASCII text.
 # Most CLI tools and scripts do not need this. GUI apps with i18n support do.

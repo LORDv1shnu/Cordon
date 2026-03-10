@@ -78,6 +78,7 @@ All completed work and planned work lives here.
 | GPU/DRI device node support | Added `dev-bind` to `MountEntry` and `scan_module_at()`, wiring in `gpu_dri` for GPU hardware acceleration |
 | Audio socket resolution at scan time | `resolve_pipewire_socket()` and `resolve_pulse_socket()` in `env_resolver.rs` — reads `$PIPEWIRE_RUNTIME_DIR` / `$PULSE_RUNTIME_PATH`, falls back to `$XDG_RUNTIME_DIR` |
 | Audio modules special-case in scanner | `scan_module_interactive()` calls respective audio socket resolvers before generic resolver |
+| Home directory & env var secret protection | Removed implicit `$HOME` exposure, restricted environment to `LANG`, `LC_*`, `TERM`, `PATH`, `USER`, `HOME`; added `home_config` optional module |
 
 ---
 

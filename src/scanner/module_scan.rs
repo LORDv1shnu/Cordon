@@ -111,11 +111,17 @@ pub fn scan_module_at(module: &CoreModule, dir: &str) -> Result<Option<MountEntr
     // XDG_RUNTIME_DIR-based mounts use the resolved path as their dest too,
     // because their canonical name varies per user. Everything else is mounted
     // at its well-known system path.
-    let dest = if module.default_dir.contains("/run/user/1000") {
+    let mut dest = if module.default_dir.contains("/run/user/1000") {
         dir.to_string()
     } else {
         module.default_dir.clone()
     };
+
+    if dest.contains("$HOME") {
+        if let Ok(val) = std::env::var("HOME") {
+            dest = dest.replace("$HOME", &val);
+        }
+    }
 
     // Path does not exist on this system — record as unverified so that
     // integrity_check can report it cleanly rather than crashing at run time.

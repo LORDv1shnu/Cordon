@@ -1,15 +1,24 @@
 /// Replaces the hardcoded `/run/user/1000` placeholder with the real
 /// `$XDG_RUNTIME_DIR` value, which is user-specific (e.g. `/run/user/1001`).
 ///
+/// Also replaces `$HOME` with the actual `HOME` environment variable.
+///
 /// Called once per module path at scan time. The resolved concrete path is
 /// stored in system.toml so bwrap and integrity_check never read env vars.
 pub fn resolve_env_vars(path: &str) -> String {
-    if path.contains("/run/user/1000")
-        && let Ok(val) = std::env::var("XDG_RUNTIME_DIR")
-    {
-        return path.replace("/run/user/1000", &val);
-    }
-    path.to_string()
+    let mut resolved_path = path.to_string();
+
+    if resolved_path.contains("/run/user/1000")
+        && let Ok(val) = std::env::var("XDG_RUNTIME_DIR") {
+            resolved_path = resolved_path.replace("/run/user/1000", &val);
+        }
+
+    if resolved_path.contains("$HOME")
+        && let Ok(val) = std::env::var("HOME") {
+            resolved_path = resolved_path.replace("$HOME", &val);
+        }
+
+    resolved_path
 }
 
 /// Resolves the D-Bus session socket path at scan time.
