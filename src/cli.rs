@@ -62,4 +62,13 @@ pub enum Commands {
         #[arg(long, default_value = "ro")]
         mode: String,
     },
+
+    /// Remove a custom path from the per-project cordon.toml.
+    Remove {
+        /// Path to remove.
+        path: String,
+    },
+
+    /// Open the local cordon.toml in the system default editor.
+    Edit {},
 }

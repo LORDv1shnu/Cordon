@@ -59,6 +59,10 @@ fn main() {
         }
 
         Commands::Add { path, mode } => config::add_user_mount(path, mode),
+
+        Commands::Remove { path } => config::remove_user_mount(path),
+
+        Commands::Edit {} => config::edit_user_config(),
     };
 
     if let Err(e) = result {

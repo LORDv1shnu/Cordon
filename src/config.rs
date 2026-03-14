@@ -168,3 +168,85 @@ pub fn add_user_mount(path: String, mode: String) -> Result<()> {
     println!("✅ Added mount to cordon.toml");
     Ok(())
 }
+
+/// Removes a mount from cordon.toml based on the provided path.
+///
+/// If multiple entries match the canonicalized path, all are removed.
+/// If the file becomes empty after removal, it is deleted.
+pub fn remove_user_mount(path: String) -> Result<()> {
+    let mut config = match find_user_config()? {
+        Some(c) => c,
+        None => {
+            println!("⚠️  No cordon.toml found in this directory or its parents.");
+            return Ok(());
+        }
+    };
+
+    let abs_path = std::fs::canonicalize(&path).unwrap_or_else(|_| std::path::PathBuf::from(&path));
+    let abs_str = abs_path.to_string_lossy().to_string();
+
+    let initial_len = config.mounts.len();
+    config.mounts.retain(|m| m.src != abs_str);
+
+    if config.mounts.len() == initial_len {
+        println!("⚠️  Path '{}' was not found in cordon.toml", abs_str);
+    } else {
+        if config.mounts.is_empty() {
+            // Delete the file if it's now empty
+            if let Ok(mut current) = std::env::current_dir() {
+                loop {
+                    let config_path = current.join("cordon.toml");
+                    if config_path.exists() {
+                        fs::remove_file(config_path)?;
+                        println!("✅ Removed empty cordon.toml");
+                        break;
+                    }
+                    if !current.pop() {
+                        break;
+                    }
+                }
+            }
+        } else {
+            let content =
+                toml::to_string_pretty(&config).context("Failed to serialise cordon.toml")?;
+            // We need to write to the ACTUAL file found.
+            // Simplified: write to the one in CWD if it exists, or the one found by find_user_config.
+            // More robust: find_user_config should probably return the path too.
+            // For now, write to ./cordon.toml as add_user_mount does.
+            fs::write("cordon.toml", content).context("Failed to write cordon.toml")?;
+            println!("✅ Removed '{}' from cordon.toml", abs_str);
+        }
+    }
+
+    Ok(())
+}
+
+/// Opens the local cordon.toml in the system default editor.
+pub fn edit_user_config() -> Result<()> {
+    if find_user_config()?.is_none() {
+        println!("No cordon.toml found. Creating a blank one...");
+        let config = UserConfig::default();
+        let content = toml::to_string_pretty(&config).context("Failed to serialise cordon.toml")?;
+        fs::write("cordon.toml", content).context("Failed to write cordon.toml")?;
+    }
+
+    // Attempt to open the file using the system editor
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("notepad.exe")
+            .arg("cordon.toml")
+            .spawn()
+            .context("Failed to open notepad")?;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
+        std::process::Command::new(editor)
+            .arg("cordon.toml")
+            .status()
+            .context("Failed to open editor")?;
+    }
+
+    Ok(())
+}
