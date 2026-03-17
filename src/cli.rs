@@ -32,10 +32,17 @@ pub enum Commands {
         #[arg(last = true, required = true)]
         cmd: Vec<String>,
 
-        /// Allow network access inside the sandbox.
-        /// When enabled, /etc and /run are mounted read-only for DNS resolution.
-        #[arg(long, default_value_t = false)]
-        network: bool,
+        /// Network permission profile:
+        ///   disable — no network access at all (default)
+        ///   allow   — only domains in proxy.toml are reachable
+        ///   full    — unrestricted internet access
+        #[arg(long, value_name = "PROFILE", default_value = "disable")]
+        net: crate::sandbox::network::NetworkMode,
+
+        /// Allow these domains through the network proxy (if active).
+        /// Multiple domains can be specified: '--domain google.com --domain github.com' or comma-separated.
+        #[arg(long = "domain", value_name = "DOMAIN", value_delimiter = ',')]
+        domains: Vec<String>,
 
         /// Show the bubblewrap command and exit without executing it.
         /// For debugging purposes, to see exactly what cordon is doing under the hood.

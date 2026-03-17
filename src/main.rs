@@ -47,11 +47,12 @@ fn main() {
     let result = match cli.command {
         Commands::Run {
             cmd,
-            network,
+            net,
+            domains,
             dry_run,
             gui,
             optional,
-        } => sandbox::run_sandboxed(cmd, network, dry_run, gui, optional),
+        } => sandbox::run_sandboxed(cmd, net, domains, dry_run, gui, optional),
 
         Commands::Scan {} => {
             // scanner::full_scan() prints its own header — no need to print here

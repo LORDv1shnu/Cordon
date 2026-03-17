@@ -16,9 +16,13 @@ use std::path::PathBuf;
 ///   6. Execute command (or print in dry-run mode)
 ///
 /// All mount paths come from system.toml and cordon.toml — nothing is hardcoded.
+use crate::sandbox::network::NetworkMode;
+use crate::sandbox::proxy::ProxyHandle;
+
 pub fn run_sandboxed(
     cmd: Vec<String>,
-    network: bool,
+    net: NetworkMode,
+    domains: Vec<String>,
     dry_run: bool,
     gui: bool,
     optional: Vec<String>,
@@ -57,11 +61,12 @@ pub fn run_sandboxed(
         println!("📂 Project dir: {}", project_dir.display());
     }
 
-    let system_config = integrity_check(network, gui)?;
+    let needs_net_mounts = net != NetworkMode::Disable;
+    let system_config = integrity_check(needs_net_mounts, gui)?;
 
-    let mut bwrap = build_bwrap(project_path, network, dry_run);
+    let mut bwrap = build_bwrap(project_path, net, dry_run);
 
-    apply_system_mounts(&mut bwrap, &system_config, network, gui, &optional);
+    apply_system_mounts(&mut bwrap, &system_config, needs_net_mounts, gui, &optional);
     apply_user_mounts(&mut bwrap, dry_run);
 
     if has_src {
@@ -72,6 +77,38 @@ pub fn run_sandboxed(
     }
 
     apply_environment(&mut bwrap, gui);
+
+    // --- Proxy Setup ---
+    let _proxy: Option<ProxyHandle> = if net == NetworkMode::Allow {
+        let proxy_cfg = crate::sandbox::proxy::load_config(&project_dir);
+        let mut final_domains = domains.clone();
+        final_domains.extend(proxy_cfg.domains);
+        final_domains.sort();
+        final_domains.dedup();
+
+        match ProxyHandle::spawn(final_domains.clone()) {
+            Ok(p) => {
+                let proxy_url = format!("http://127.0.0.1:{}", p.port);
+                bwrap.arg("--setenv").arg("HTTP_PROXY").arg(&proxy_url);
+                bwrap.arg("--setenv").arg("HTTPS_PROXY").arg(&proxy_url);
+                bwrap.arg("--setenv").arg("http_proxy").arg(&proxy_url);
+                bwrap.arg("--setenv").arg("https_proxy").arg(&proxy_url);
+                bwrap.arg("--setenv").arg("ALL_PROXY").arg(&proxy_url);
+                bwrap.arg("--setenv").arg("all_proxy").arg(&proxy_url);
+                
+                if !dry_run {
+                    println!("🔒 Proxy: listening on :{} ({} domains allowed)", p.port, final_domains.len());
+                }
+                Some(p)
+            }
+            Err(e) => {
+                eprintln!("⚠️  Proxy failed to start: {} — continuing without proxy", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     bwrap
         .arg("--chdir")
