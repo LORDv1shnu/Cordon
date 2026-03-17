@@ -82,6 +82,18 @@ All completed work and planned work lives here.
 
 ---
 
+### Phase 2.7 — Networking & Proxy ✅
+
+| Feature | Notes |
+|---------|-------|
+| `--net=<mode>` flag | `disable` (default), `allow` (proxy), `full` (direct) |
+| Native Rust Proxy | Multi-threaded HTTP/HTTPS domain-filtering proxy (no Python required) |
+| `proxy.toml` support | Project-local and global domain allow-lists |
+| CLI `--domain` flag | On-the-fly domain white-listing |
+| Proxy log integration | Access logs printed to stderr with `[CORDON-PROXY]` prefix |
+
+---
+
 ### Code Quality Pass ✅
 
 | Area | Change |

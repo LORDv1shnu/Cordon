@@ -5,8 +5,9 @@
 Run any command inside a restricted filesystem view — without modifying system-wide permissions, installing permanent policies, or using heavy virtualisation.
 
 ```bash
-cordon run -- npm install
-cordon run --network -- curl https://example.com
+cordon run -- ls -la
+cordon run --net=full -- curl https://example.com
+cordon run --net=allow --domain google.com -- curl https://google.com
 cordon run --gui -- code .
 ```
 
@@ -28,7 +29,8 @@ Cordon uses **Linux namespaces** via `bubblewrap` to create an isolated environm
 - Your project directory is mounted **writable**
 - `src/` (if it exists) is protected as **read-only**
 - Everything else is **hidden**
-- Network is **disabled by default**
+- Network is **disabled by default** (isolated namespace)
+- **Domain filtering proxy**: Only allowed domains can be reached in `--net=allow` mode
 - When the process exits, the sandbox is **gone entirely**
 
 No root. No containers. No system-wide config.
@@ -66,8 +68,15 @@ cargo run -- run -- echo "hello from sandbox"
 # Run a command (network disabled by default)
 cordon run -- <command>
 
-# Allow network access
-cordon run --network -- <command>
+# Network access (disabled by default)
+cordon run --net=disable -- <command>
+
+# Domain-filtered network access (proxy)
+cordon run --net=allow -- <command>
+cordon run --net=allow --domain google.com -- <command>
+
+# Full unrestricted network access
+cordon run --net=full -- <command>
 
 # Enable GUI app support (X11/Wayland/fonts)
 cordon run --gui -- <command>
