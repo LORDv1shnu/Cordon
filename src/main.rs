@@ -38,6 +38,9 @@ mod errors;
 // Logging initialisation (tracing framework)
 mod logger;
 
+// Standalone subcommand implementations (check, list, …)
+mod commands;
+
 use cli::{Cli, Commands};
 use errors::CordonError;
 
@@ -76,6 +79,10 @@ fn main() {
         Commands::Remove { path } => config::remove_user_mount(path).map_err(Into::into),
 
         Commands::Edit {} => config::edit_user_config().map_err(Into::into),
+
+        Commands::Check => commands::check::run_check().map_err(Into::into),
+
+        Commands::List => commands::list::run_list().map_err(Into::into),
     };
 
     if let Err(e) = result {

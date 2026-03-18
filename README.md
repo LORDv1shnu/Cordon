@@ -93,6 +93,12 @@ cordon run --debug -- <command>
 # Re-scan the system (after upgrades, new distro, etc.)
 cordon scan
 
+# Health-check: verify bwrap, namespaces, AppArmor, and module readiness
+cordon check
+
+# Show all mounts that would be active in the next sandbox run
+cordon list
+
 # Add a custom path to the per-project cordon.toml
 cordon add /path/to/dir --mode rw
 ```
@@ -163,6 +169,10 @@ src/
  ├── config.rs        # Data types + file I/O for all three config layers
  ├── errors.rs        # CordonError typed enum (thiserror)
  ├── logger.rs        # Dual-sink tracing logger (stderr + ~/.config/cordon/logs/)
+ ├── commands/
+ │   ├── mod.rs
+ │   ├── check.rs         # cordon check — sandbox health check
+ │   └── list.rs          # cordon list — show active mounts
  ├── scanner/
  │   ├── mod.rs
  │   ├── full_scan.rs     # Interactive 4-phase scanner, writes system.toml

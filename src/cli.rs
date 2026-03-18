@@ -83,4 +83,12 @@ pub enum Commands {
 
     /// Open the local cordon.toml in the system default editor.
     Edit {},
+
+    /// Check that the sandbox is ready to run: bwrap, namespaces, AppArmor, and modules.
+    /// Exits 0 if all checks pass, 1 if any check fails.
+    Check,
+
+    /// List all mounts that would be active in the next sandbox run.
+    /// Shows system.toml entries and cordon.toml project mounts side-by-side.
+    List,
 }

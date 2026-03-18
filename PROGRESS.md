@@ -185,19 +185,16 @@ All completed work and planned work lives here.
 
 ---
 
-### Phase 3 — Observability `[PLANNED]`
+### Phase 3 — Observability (Partial) ✅
 
-**`cordon status` Command**
-- New subcommand: show `system.toml` contents without running a scan.
-- Display: each module name, verification status (`✅` / `⚠️`), source path, `when` category.
-- Show `last_scan` timestamp and `cordon_version` from the file header.
-- Useful for debugging "why isn't my module being mounted?" without running a full command.
-- Wire in `cli.rs` and `main.rs` only — reads via `load_system_config()` from `config.rs`.
+| Feature | Notes |
+|---------|-------|
+| `cordon check` | 7-point health check: bwrap install, userns creation, AppArmor flag, system.toml validity, core/network/GUI module state. Colored OK/WARN/FAIL table + summary line |
+| `cordon list` | Lists all system mounts (system.toml) with verified/unverified indicators grouped by `when` (always/network/gui/optional), plus project mounts (cordon.toml) with path-exists checks |
 
-**strace Integration**
-- Wrap bwrap with strace, capture blocked syscalls and paths.
-- Parse strace output — show what the app tried to access but couldn't.
-- Write a structured log of blocked paths after each run.
+---
+
+### Phase 3 — Observability (Remaining) `[PLANNED]`
 
 ---
 
