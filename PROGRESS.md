@@ -196,6 +196,18 @@ All completed work and planned work lives here.
 
 ### Phase 3 — Observability (Remaining) `[PLANNED]`
 
+**`cordon status` Command**
+- New subcommand: show `system.toml` contents without running a scan.
+- Display: each module name, verification status (`✅` / `⚠️`), source path, `when` category.
+- Show `last_scan` timestamp and `cordon_version` from the file header.
+- Useful for debugging "why isn't my module being mounted?" without running a full command.
+- Wire in `cli.rs` and `main.rs` only — reads via `load_system_config()` from `config.rs`.
+
+**strace Integration**
+- Wrap bwrap with strace, capture blocked syscalls and paths.
+- Parse strace output — show what the app tried to access but couldn't.
+- Write a structured log of blocked paths after each run.
+
 ---
 
 ### Phase 4 — Polish & DX `[PLANNED]`
