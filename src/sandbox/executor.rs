@@ -1,9 +1,14 @@
 use crate::sandbox::builder::{apply_environment, build_bwrap};
 use crate::sandbox::mounts::{apply_system_mounts, apply_user_mounts};
 use crate::scanner::integrity_check;
-use anyhow::{Result, bail};
+use crate::errors::CordonError;
+use anyhow::Result;
 use std::env;
 use std::path::PathBuf;
+use tracing::{error, info, warn};
+
+use crate::sandbox::network::NetworkMode;
+use crate::sandbox::proxy::ProxyHandle;
 
 /// Builds and executes the bubblewrap sandbox.
 ///
@@ -11,14 +16,11 @@ use std::path::PathBuf;
 ///   1. Check bwrap is installed
 ///   2. Run integrity_check() to validate system.toml
 ///   3. Build bwrap command: namespace isolation, system mounts, user mounts
-///   4. Prompt user before applying cordon.toml (user.toml) mounts
+///   4. Prompt user before applying cordon.toml mounts
 ///   5. Forward safe environment variables into sandbox
 ///   6. Execute command (or print in dry-run mode)
 ///
 /// All mount paths come from system.toml and cordon.toml — nothing is hardcoded.
-use crate::sandbox::network::NetworkMode;
-use crate::sandbox::proxy::ProxyHandle;
-
 pub fn run_sandboxed(
     cmd: Vec<String>,
     net: NetworkMode,
@@ -27,26 +29,21 @@ pub fn run_sandboxed(
     gui: bool,
     optional: Vec<String>,
 ) -> Result<()> {
-    println!("Checking for core dependency: bwrap...");
-    // Verify bwrap is installed before doing anything else.
-    // Failure here exits 125, matching bwrap's own convention for setup errors.
+    // 1. Verify bwrap is installed.
     if std::process::Command::new("bwrap")
         .arg("--version")
         .output()
         .map(|o| !o.status.success())
         .unwrap_or(true)
     {
-        eprintln!(
-            "error: bubblewrap (bwrap) is not installed or not found in PATH.\n\
-             Install it with:\n  \
-               Ubuntu/Debian:  sudo apt install bubblewrap\n  \
-               Arch:           sudo pacman -S bubblewrap\n  \
-               Fedora:         sudo dnf install bubblewrap"
-        );
-        bail!("exit code: 125");
+        error!("bubblewrap (bwrap) is not installed or not found in PATH");
+        return Err(CordonError::DependencyMissing(
+            "bubblewrap (bwrap) — install with: sudo apt install bubblewrap".to_string(),
+        )
+        .into());
     }
 
-    println!("🔒 Running inside sandbox...");
+    info!("Running inside sandbox...");
 
     let project_dir: PathBuf = env::current_dir()?;
     let project_path = project_dir.to_str().unwrap();
@@ -54,11 +51,11 @@ pub fn run_sandboxed(
     let has_src = src_dir.exists() && src_dir.is_dir();
 
     if has_src && !dry_run {
-        println!("🔒 Protecting src/ as read-only");
+        info!("Protecting src/ as read-only");
     }
 
     if !dry_run {
-        println!("📂 Project dir: {}", project_dir.display());
+        info!("Project dir: {}", project_dir.display());
     }
 
     let needs_net_mounts = net != NetworkMode::Disable;
@@ -78,7 +75,7 @@ pub fn run_sandboxed(
 
     apply_environment(&mut bwrap, gui);
 
-    // --- Proxy Setup ---
+    // ── Proxy Setup ───────────────────────────────────────────────────────────
     let _proxy: Option<ProxyHandle> = if net == NetworkMode::Allow {
         let proxy_cfg = crate::sandbox::proxy::load_config(&project_dir);
         let mut final_domains = domains.clone();
@@ -95,14 +92,22 @@ pub fn run_sandboxed(
                 bwrap.arg("--setenv").arg("https_proxy").arg(&proxy_url);
                 bwrap.arg("--setenv").arg("ALL_PROXY").arg(&proxy_url);
                 bwrap.arg("--setenv").arg("all_proxy").arg(&proxy_url);
-                
+                // npm and pip have their own proxy vars that ignore the standard ones
+                bwrap.arg("--setenv").arg("npm_config_proxy").arg(&proxy_url);
+                bwrap.arg("--setenv").arg("npm_config_https_proxy").arg(&proxy_url);
+                bwrap.arg("--setenv").arg("PIP_PROXY").arg(&proxy_url);
+
                 if !dry_run {
-                    println!("🔒 Proxy: listening on :{} ({} domains allowed)", p.port, final_domains.len());
+                    info!(
+                        "Proxy listening on :{} ({} domains allowed)",
+                        p.port,
+                        final_domains.len()
+                    );
                 }
                 Some(p)
             }
             Err(e) => {
-                eprintln!("⚠️  Proxy failed to start: {} — continuing without proxy", e);
+                warn!("Proxy failed to start: {} — continuing without proxy", e);
                 None
             }
         }
@@ -132,13 +137,45 @@ pub fn run_sandboxed(
     let status = bwrap.status()?;
 
     if status.success() {
-        println!("✅ Command completed successfully");
         Ok(())
     } else {
-        // Extract the child's exit code and propagate it via an encoded error.
-        // main.rs decodes "exit code: N" and calls std::process::exit(N).
         let code = status.code().unwrap_or(1);
-        eprintln!("❌ Command exited with status: {}", code);
-        bail!("exit code: {}", code);
+        error!("Sandboxed command exited with code {}", code);
+        // Determine the most specific error type possible
+        let program = cmd.first().cloned().unwrap_or_default();
+        // Exit codes 1/126/127 may mean the binary wasn't found or isn't executable.
+        if matches!(code, 1 | 126 | 127) {
+            if let Some(path) = find_binary(&program) {
+                if !is_executable(&path) {
+                    return Err(CordonError::PermissionDenied(program).into());
+                }
+            } else {
+                return Err(CordonError::CommandNotFound(program).into());
+            }
+        }
+        Err(CordonError::ExecutionError(code).into())
     }
+}
+
+fn is_executable(path: &std::path::Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::metadata(path)
+        .map(|m| m.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
+}
+
+fn find_binary(name: &str) -> Option<std::path::PathBuf> {
+    if name.contains('/') {
+        let path = std::path::PathBuf::from(name);
+        return if path.exists() { Some(path) } else { None };
+    }
+    if let Ok(path_var) = env::var("PATH") {
+        for dir in path_var.split(':') {
+            let full = std::path::PathBuf::from(dir).join(name);
+            if full.exists() {
+                return Some(full);
+            }
+        }
+    }
+    None
 }

@@ -159,34 +159,29 @@ All completed work and planned work lives here.
 
 ---
 
-### Phase 2.9 — Error Taxonomy `[PLANNED]`
+### Phase 2.9 — Error Taxonomy ✅
 
-**Named Error Types and Actionable Messages**
+| Feature | Notes |
+|---------|-------|
+| `CordonError` typed enum | `src/errors.rs` — 7 variants via `thiserror`; `DependencyMissing`, `CommandNotFound`, `PermissionDenied`, `ExecutionError`, `NamespaceError`, `ScanRequired`, `Internal` |
+| Diagnostic error box | `main.rs` — ASCII box rendered on any `CordonError`, matches LION style |
+| Smart failure hints | Exit 6 → "network disabled", 7 → "try --net=full", 35 → "SSL error", 126/127 detection |
+| Structured exit codes | `CommandNotFound` → 127, `PermissionDenied` → 126, `DependencyMissing` → 125 automatically |
+| Binary find + exec check | `executor.rs` — disambiguates `CommandNotFound` vs `PermissionDenied` on exit 1/126/127 |
+| Log path in error box | Always shows `~/.config/cordon/logs/last-run.log` hint |
 
-Current state: most errors collapse into generic anyhow chains and exit 125 or 1 with no guidance.
+---
 
-Target: every error category has a distinct exit code, a clear one-line cause, and an actionable fix hint.
+### Phase 2.10 — Structured Logging ✅
 
-| Category | Current | Target exit | Example message |
-|----------|---------|-------------|-----------------|
-| bwrap not installed | exit 125, generic | 125 | `[cordon] bwrap not found. Install: sudo apt install bubblewrap` |
-| `system.toml` missing | silent re-scan | 0 (auto-heals) | `[cordon] No system scan found — running first-time scan...` |
-| `system.toml` malformed | silent re-scan | 0 (auto-heals) | `[cordon] system.toml is corrupt — re-running scan...` |
-| Foreign entry in `system.toml` | exit 1 | 125 | `[cordon] Security: unknown module "evil" in system.toml. Run: cordon scan` |
-| Required module unverified | exit 1 | 125 | `[cordon] Required module "lib" is unverified. Run: cordon scan` |
-| `--network` gate fail | exit 1 | 125 | `[cordon] Network requested but "dns_resolution" unverified. Run: cordon scan` |
-| `--gui` gate fail | exit 1 | 125 | `[cordon] GUI requested but "x11_socket" unverified. Run: cordon scan` |
-| `cordon.toml` parse error | warning, continues | 1 | `[cordon] cordon.toml is malformed: <reason>. Fix or delete it.` |
-| bwrap exits non-zero | exit 1 | N (forwarded) | `[cordon] Sandbox exited with code N` |
-| Command not found in sandbox | exit 1 | 127 | `[cordon] Command not found inside sandbox: <cmd>` |
-| Command not executable | exit 1 | 126 | `[cordon] Command not executable inside sandbox: <cmd>` |
-| Profile not found | — | 1 | `[cordon] Profile "FOO" not found. Run: cordon profile list` |
-
-Implementation:
-- Introduce a `CordonError` enum in a new `src/error.rs` (or inline in `main.rs`) with variants for each category.
-- Each variant carries a user-facing message + fix hint, printed to stderr before exit.
-- Replace scattered `bail!` / `eprintln!` calls in `executor.rs`, `integrity.rs`, `mounts.rs` with typed variants.
-- bwrap stderr captured and inspected to detect 126 vs 127 (command not executable vs not found).
+| Feature | Notes |
+|---------|-------|
+| `logger.rs` — dual-sink tracing | `tracing` + `tracing-subscriber` + `tracing-appender` |
+| File sink | Full `TRACE` always written to `~/.config/cordon/logs/last-run.log` (non-blocking) |
+| Stderr sink | `INFO` level by default; `DEBUG` when `--debug` is passed |
+| `--debug` flag on `cordon run` | Activates verbose DEBUG output on stderr |
+| All `println!`/`eprintln!` replaced | `executor.rs`, `builder.rs`, `mounts.rs` now use `tracing::info!`/`warn!`/`error!` |
+| Extended proxy env vars | `npm_config_proxy`, `npm_config_https_proxy`, `PIP_PROXY` now set alongside standard vars |
 
 ---
 

@@ -1,4 +1,5 @@
 use std::process::Command;
+use tracing::info;
 
 use crate::sandbox::network::NetworkMode;
 
@@ -29,19 +30,19 @@ pub fn build_bwrap(project_path: &str, net: NetworkMode, dry_run: bool) -> Comma
         NetworkMode::Disable => {
             bwrap.arg("--unshare-net");
             if !dry_run {
-                println!("🌐 Network: disabled");
+                info!("Network: disabled");
             }
         }
         NetworkMode::Full => {
             apply_network_mounts(&mut bwrap);
             if !dry_run {
-                println!("🌐 Network: full access");
+                info!("Network: full access");
             }
         }
         NetworkMode::Allow => {
             apply_network_mounts(&mut bwrap);
             if !dry_run {
-                println!("🌐 Network: domain allow-list");
+                info!("Network: domain allow-list (proxy.toml)");
             }
         }
     }
@@ -71,6 +72,8 @@ fn apply_network_mounts(bwrap: &mut Command) {
 }
 
 pub fn apply_environment(bwrap: &mut Command, gui: bool) {
+    #[allow(unused_imports)]
+    use tracing::debug;
     if gui {
         // Environment variables required for GUI support
         if let Ok(display) = std::env::var("DISPLAY") {

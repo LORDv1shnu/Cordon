@@ -44,6 +44,11 @@ pub enum Commands {
         #[arg(long = "domain", value_name = "DOMAIN", value_delimiter = ',')]
         domains: Vec<String>,
 
+        /// Enable detailed technical tracing logs on stderr.
+        /// Also writes a full trace to ~/.config/cordon/logs/last-run.log on every run.
+        #[arg(long, default_value_t = false)]
+        debug: bool,
+
         /// Show the bubblewrap command and exit without executing it.
         /// For debugging purposes, to see exactly what cordon is doing under the hood.
         #[arg(long, default_value_t = false)]

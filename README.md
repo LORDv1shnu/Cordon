@@ -87,6 +87,9 @@ cordon run --optional audio --optional dbus -- <command>
 # Dry-run: show the bwrap command without executing it
 cordon run --dry-run -- <command>
 
+# Debug: verbose tracing output on stderr + log file
+cordon run --debug -- <command>
+
 # Re-scan the system (after upgrades, new distro, etc.)
 cordon scan
 
@@ -142,6 +145,9 @@ It reduces risk through **filesystem restriction**, not detection.
 | `bubblewrap` | Linux namespace sandboxing |
 | `clap` | CLI argument parsing |
 | `anyhow` | Error handling and propagation |
+| `thiserror` | Typed `CordonError` enum with per-variant messages |
+| `tracing` + `tracing-subscriber` | Structured logging (stderr + file) |
+| `tracing-appender` | Non-blocking file sink for `last-run.log` |
 | `serde` + `toml` | Config serialisation |
 | `chrono` | Timestamps in `system.toml` |
 | `fd-lock` | Write lock on `system.toml` during scans |
@@ -152,9 +158,11 @@ It reduces risk through **filesystem restriction**, not detection.
 
 ```
 src/
- ├── main.rs          # CLI router, exit code handling
+ ├── main.rs          # CLI router, exit code handling, diagnostic error box
  ├── cli.rs           # clap argument structs (no logic)
  ├── config.rs        # Data types + file I/O for all three config layers
+ ├── errors.rs        # CordonError typed enum (thiserror)
+ ├── logger.rs        # Dual-sink tracing logger (stderr + ~/.config/cordon/logs/)
  ├── scanner/
  │   ├── mod.rs
  │   ├── full_scan.rs     # Interactive 4-phase scanner, writes system.toml
@@ -165,6 +173,8 @@ src/
      ├── mod.rs
      ├── builder.rs       # Builds base bwrap Command + env var passthrough
      ├── mounts.rs        # Applies system + user mounts to bwrap command
+     ├── network.rs       # NetworkMode enum
+     ├── proxy.rs         # Native Rust domain-filtering HTTP/HTTPS proxy
      └── executor.rs      # Orchestrates the full cordon run flow
 ```
 
