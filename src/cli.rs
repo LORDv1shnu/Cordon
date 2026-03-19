@@ -91,4 +91,10 @@ pub enum Commands {
     /// List all mounts that would be active in the next sandbox run.
     /// Shows system.toml entries and cordon.toml project mounts side-by-side.
     List,
+
+    /// Show the contents of system.toml without running a scan.
+    /// Displays each module's name, verification status, bind type, when category, and source path.
+    /// Also shows the last_scan timestamp and cordon_version from the file header.
+    /// Useful for debugging "why isn't my module being mounted?" without running any command.
+    Status,
 }

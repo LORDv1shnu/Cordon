@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, error::ErrorKind};
 
 /// Cordon exit codes
 ///
@@ -38,8 +38,11 @@ mod errors;
 // Logging initialisation (tracing framework)
 mod logger;
 
-// Standalone subcommand implementations (check, list, …)
+// Standalone subcommand implementations (check, list, status …)
 mod commands;
+
+// Smart "did you mean?" suggestions and usage hints
+mod suggestions;
 
 use cli::{Cli, Commands};
 use errors::CordonError;
@@ -47,7 +50,61 @@ use errors::CordonError;
 /// Entry point. Parses CLI and dispatches to the appropriate module.
 /// main.rs intentionally contains no business logic — it only routes.
 fn main() {
-    let cli = Cli::parse();
+    // Use try_parse so we can intercept clap errors and provide
+    // "did you mean?" suggestions and full command syntax hints.
+    let cli = match Cli::try_parse() {
+        Ok(c) => c,
+        Err(e) => {
+            match e.kind() {
+                // Unknown / misspelled subcommand ─────────────────────────────
+                ErrorKind::InvalidSubcommand => {
+                    // The bad token is the first user-supplied arg after "cordon".
+                    // Pulling it from raw args is more reliable than parsing the
+                    // clap ContextValue enum across API versions.
+                    let bad = std::env::args()
+                        .nth(1)
+                        .unwrap_or_default();
+                    suggestions::print_unknown_command_error(&bad);
+                    std::process::exit(exit_codes::USAGE_ERROR);
+                }
+
+                // Missing required positional arg or subcommand ───────────────
+                ErrorKind::MissingRequiredArgument
+                | ErrorKind::MissingSubcommand => {
+                    // The subcommand is the first arg the user gave us.
+                    let subcommand_raw = std::env::args().nth(1);
+                    let subcommand = subcommand_raw.as_deref();
+
+                    // Extract missing-arg name from the clap ContextValue enum.
+                    // ContextValue::String holds the arg name in this case.
+                    let missing: String = e
+                        .context()
+                        .find_map(|(kind, val)| {
+                            use clap::error::{ContextKind, ContextValue};
+                            if kind == ContextKind::InvalidArg {
+                                if let ContextValue::String(s) = val {
+                                    return Some(s.clone());
+                                }
+                                if let ContextValue::Strings(ss) = val {
+                                    return Some(ss.join(", "));
+                                }
+                            }
+                            None
+                        })
+                        .unwrap_or_else(|| "<argument>".to_owned());
+
+                    suggestions::print_missing_arg_error(&missing, subcommand);
+                    std::process::exit(exit_codes::USAGE_ERROR);
+                }
+
+                // All other clap errors: clap's default rendering ─────────────
+                _ => {
+                    e.print().expect("failed to print clap error");
+                    std::process::exit(exit_codes::USAGE_ERROR);
+                }
+            }
+        }
+    };
 
     let result: anyhow::Result<()> = match cli.command {
         Commands::Run {
@@ -83,6 +140,8 @@ fn main() {
         Commands::Check => commands::check::run_check().map_err(Into::into),
 
         Commands::List => commands::list::run_list().map_err(Into::into),
+
+        Commands::Status => commands::status::run_status().map_err(Into::into),
     };
 
     if let Err(e) = result {

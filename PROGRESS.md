@@ -2,6 +2,8 @@
 
 All completed work and planned work lives here.
 
+> **Command Reference**: See [COMMANDS.md](./COMMANDS.md) for a complete list of all current and planned commands with flags, examples, and phase numbers.
+
 ---
 
 ## Completed
@@ -107,6 +109,14 @@ All completed work and planned work lives here.
 
 ---
 
+### Documentation ✅
+
+| Item | Notes |
+|------|-------|
+| `COMMANDS.md` created | Full command reference — all current commands with flags/examples + all planned commands with phase numbers |
+
+---
+
 ## Pending
 
 ### Phase 2.6 — Scanner Completion `[COMPLETED]`
@@ -191,6 +201,8 @@ All completed work and planned work lives here.
 |---------|-------|
 | `cordon check` | 7-point health check: bwrap install, userns creation, AppArmor flag, system.toml validity, core/network/GUI module state. Colored OK/WARN/FAIL table + summary line |
 | `cordon list` | Lists all system mounts (system.toml) with verified/unverified indicators grouped by `when` (always/network/gui/optional), plus project mounts (cordon.toml) with path-exists checks |
+| `cordon status` | Shows system.toml contents without scanning — module name, verified (✅/⚠️), bind type, `when` category, source path; header shows `last_scan` and `cordon_version`; per-category breakdown footer |
+| Smart error suggestions | Unknown subcommand → Levenshtein nearest-match → "did you mean cordon X?"; missing required arg → full command syntax. Implemented in `src/suggestions.rs`, hooked via `Cli::try_parse()` in `main.rs`. Covers all present and future commands. |
 
 ---
 
