@@ -1,6 +1,9 @@
 use std::process::Command;
+use tracing::info;
 
-pub fn build_bwrap(project_path: &str, network: bool, dry_run: bool) -> Command {
+use crate::sandbox::network::NetworkMode;
+
+pub fn build_bwrap(project_path: &str, net: NetworkMode, dry_run: bool) -> Command {
     let mut bwrap = Command::new("bwrap");
 
     // --- Core namespace isolation + standard pseudo-filesystems ---
@@ -23,19 +26,54 @@ pub fn build_bwrap(project_path: &str, network: bool, dry_run: bool) -> Command 
         project_path,
     ]);
 
-    if !network {
-        bwrap.arg("--unshare-net");
-        if !dry_run {
-            println!("🌐 Network: disabled");
+    match net {
+        NetworkMode::Disable => {
+            bwrap.arg("--unshare-net");
+            if !dry_run {
+                info!("Network: disabled");
+            }
         }
-    } else {
-        println!("🌐 Network: enabled");
+        NetworkMode::Full => {
+            apply_network_mounts(&mut bwrap);
+            if !dry_run {
+                info!("Network: full access");
+            }
+        }
+        NetworkMode::Allow => {
+            apply_network_mounts(&mut bwrap);
+            if !dry_run {
+                info!("Network: domain allow-list (proxy.toml)");
+            }
+        }
     }
 
     bwrap
 }
 
+fn apply_network_mounts(bwrap: &mut Command) {
+    let net_files = [
+        "/etc/resolv.conf",
+        "/etc/hosts",
+        "/etc/hostname",
+        "/etc/nsswitch.conf",
+    ];
+    for path in net_files {
+        if std::path::Path::new(path).exists() {
+            bwrap.args(["--ro-bind", path, path]);
+        }
+    }
+
+    if std::path::Path::new("/etc/ssl").exists() {
+        bwrap.args(["--ro-bind", "/etc/ssl", "/etc/ssl"]);
+    }
+    if std::path::Path::new("/etc/pki").exists() {
+        bwrap.args(["--ro-bind", "/etc/pki", "/etc/pki"]);
+    }
+}
+
 pub fn apply_environment(bwrap: &mut Command, gui: bool) {
+    #[allow(unused_imports)]
+    use tracing::debug;
     if gui {
         // Environment variables required for GUI support
         if let Ok(display) = std::env::var("DISPLAY") {

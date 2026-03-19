@@ -22,5 +22,7 @@
 pub mod builder;
 pub mod executor;
 pub mod mounts;
+pub mod network;
+pub mod proxy;
 
 pub use executor::run_sandboxed;

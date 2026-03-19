@@ -5,8 +5,9 @@
 Run any command inside a restricted filesystem view — without modifying system-wide permissions, installing permanent policies, or using heavy virtualisation.
 
 ```bash
-cordon run -- npm install
-cordon run --network -- curl https://example.com
+cordon run -- ls -la
+cordon run --net=full -- curl https://example.com
+cordon run --net=allow --domain google.com -- curl https://google.com
 cordon run --gui -- code .
 ```
 
@@ -28,7 +29,8 @@ Cordon uses **Linux namespaces** via `bubblewrap` to create an isolated environm
 - Your project directory is mounted **writable**
 - `src/` (if it exists) is protected as **read-only**
 - Everything else is **hidden**
-- Network is **disabled by default**
+- Network is **disabled by default** (isolated namespace)
+- **Domain filtering proxy**: Only allowed domains can be reached in `--net=allow` mode
 - When the process exits, the sandbox is **gone entirely**
 
 No root. No containers. No system-wide config.
@@ -39,7 +41,7 @@ No root. No containers. No system-wide config.
 |-------|------|-------------|
 | Core | `core.toml` (in binary) | Blueprint of what paths to look for. Immutable at runtime. |
 | System | `~/.config/cordon/system.toml` | Scanner output — verified paths on **this machine**. |
-| Project | `./cordon.toml` | Optional per-project extra mounts. |
+| Project | `./cordon.toml` | Optional per-project extra mounts and profile defaults. |
 
 bwrap reads paths only from `system.toml` and `cordon.toml`. Neither file is ever exposed inside the sandbox.
 
@@ -66,24 +68,48 @@ cargo run -- run -- echo "hello from sandbox"
 # Run a command (network disabled by default)
 cordon run -- <command>
 
-# Allow network access
-cordon run --network -- <command>
+# Domain-filtered network access (proxy)
+cordon run --net=allow -- <command>
+cordon run --net=allow --domain google.com -- <command>
+
+# Full unrestricted network access
+cordon run --net=full -- <command>
 
 # Enable GUI app support (X11/Wayland/fonts)
 cordon run --gui -- <command>
 
 # Activate optional modules (e.g. audio, dbus)
-cordon run --optional audio --optional dbus -- <command>
+cordon run --optional audio_pipewire --optional dbus_session -- <command>
 
 # Dry-run: show the bwrap command without executing it
 cordon run --dry-run -- <command>
 
+# Debug: verbose tracing output on stderr + log file
+cordon run --debug -- <command>
+
 # Re-scan the system (after upgrades, new distro, etc.)
 cordon scan
 
+# Health-check: verify bwrap, namespaces, AppArmor, and module readiness
+cordon check
+
+# Show all mounts that would be active in the next sandbox run
+cordon list
+
+# Show system.toml contents without scanning
+cordon status
+
 # Add a custom path to the per-project cordon.toml
 cordon add /path/to/dir --mode rw
+
+# Persist default profile flags into cordon.toml (no CLI flags needed next run)
+cordon set --net=allow --gui --optional audio_pipewire
+
+# Unset profile defaults from cordon.toml
+cordon unset --net --gui --optional audio_pipewire
 ```
+
+> Full flags, examples, and planned commands: **[COMMANDS.md](COMMANDS.md)**
 
 ---
 
@@ -113,19 +139,6 @@ It reduces risk through **filesystem restriction**, not detection.
 
 ---
 
-> For roadmap and progress tracking, see [PROGRESS.md](PROGRESS.md).
-
----
-
-## Target Users
-
-- Developers running third-party install scripts (`npm install`, `pip install`)
-- Users testing AppImages or unknown binaries
-- Contributors running scripts from open-source repositories
-- Anyone who wants safer defaults without heavy tooling
-
----
-
 ## Tech Stack
 
 | Crate / Tool | Role |
@@ -133,6 +146,9 @@ It reduces risk through **filesystem restriction**, not detection.
 | `bubblewrap` | Linux namespace sandboxing |
 | `clap` | CLI argument parsing |
 | `anyhow` | Error handling and propagation |
+| `thiserror` | Typed `CordonError` enum with per-variant messages |
+| `tracing` + `tracing-subscriber` | Structured logging (stderr + file) |
+| `tracing-appender` | Non-blocking file sink for `last-run.log` |
 | `serde` + `toml` | Config serialisation |
 | `chrono` | Timestamps in `system.toml` |
 | `fd-lock` | Write lock on `system.toml` during scans |
@@ -143,28 +159,43 @@ It reduces risk through **filesystem restriction**, not detection.
 
 ```
 src/
- ├── main.rs          # CLI router, exit code handling
+ ├── main.rs          # CLI router, exit code handling, diagnostic error box
  ├── cli.rs           # clap argument structs (no logic)
  ├── config.rs        # Data types + file I/O for all three config layers
+ ├── errors.rs        # CordonError typed enum (thiserror)
+ ├── logger.rs        # Dual-sink tracing logger (stderr + ~/.config/cordon/logs/)
+ ├── suggestions.rs   # Smart "did you mean?" suggestions for mistyped commands
+ ├── commands/
+ │   ├── check.rs     # cordon check — sandbox health check
+ │   ├── list.rs      # cordon list — show active mounts
+ │   └── status.rs    # cordon status — show system.toml contents
  ├── scanner/
- │   ├── mod.rs
  │   ├── full_scan.rs     # Interactive 4-phase scanner, writes system.toml
  │   ├── integrity.rs     # Non-interactive 7-step pre-flight check
  │   ├── module_scan.rs   # Per-module scan logic (symlink detection, D-Bus)
  │   └── env_resolver.rs  # XDG_RUNTIME_DIR + D-Bus socket path resolution
  └── sandbox/
-     ├── mod.rs
-     ├── builder.rs       # Builds base bwrap Command + env var passthrough
-     ├── mounts.rs        # Applies system + user mounts to bwrap command
-     └── executor.rs      # Orchestrates the full cordon run flow
+     ├── builder.rs   # Builds base bwrap Command + env var passthrough
+     ├── mounts.rs    # Applies system + user mounts to bwrap command
+     ├── network.rs   # NetworkMode enum
+     ├── proxy.rs     # Native Rust domain-filtering HTTP/HTTPS proxy
+     └── executor.rs  # Orchestrates the full cordon run flow
 ```
 
-See [MODULE_INFO.md](MODULE_INFO.md) for a detailed description of every file.
+---
+
+## Further Reading
+
+| Document | What you'll find |
+|----------|-----------------|
+| [COMMANDS.md](COMMANDS.md) | Every flag, all subcommands, network profiles, optional modules |
+| [SCANNER_LOGIC.md](SCANNER_LOGIC.md) | How the scanner and integrity check work internally |
+| [MODULE_INFO.md](MODULE_INFO.md) | Developer guide — every source file explained |
+| [PROGRESS.md](PROGRESS.md) | What's been built, what's planned |
 
 ---
 
 ## AI Usage Note
 
-Built with AI assistance (GitHub Copilot / Claude) as an implementation accelerator.
+Built with AI assistance (GitHub Copilot / Gemini) as an implementation accelerator.
 All architecture decisions, security model, and design direction are the author's work.
-See [SCANNER_LOGIC.md](SCANNER_LOGIC.md) for design rationale.

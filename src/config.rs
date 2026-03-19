@@ -62,6 +62,10 @@ pub struct SystemConfig {
 pub struct UserConfig {
     #[serde(rename = "mount", default)]
     pub mounts: Vec<UserMount>,
+
+    pub network: Option<String>,
+    pub gui: Option<bool>,
+    pub optional: Option<Vec<String>>,
 }
 
 /// A single user-defined mount entry from cordon.toml.
@@ -249,4 +253,154 @@ pub fn edit_user_config() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Enum for setting profile fields in cordon.toml.
+pub enum ProfileField {
+    Network(String),
+    Gui(bool),
+    OptionalAdd(String),
+}
+
+/// Sets a profile field in cordon.toml, creating the file if it doesn't exist.
+pub fn set_profile_field(field: ProfileField) -> Result<()> {
+    let mut config = find_user_config()?.unwrap_or_default();
+
+    match field {
+        ProfileField::Network(net) => {
+            config.network = Some(net);
+        }
+        ProfileField::Gui(gui) => {
+            config.gui = Some(gui);
+        }
+        ProfileField::OptionalAdd(module) => {
+            let mut opts = config.optional.unwrap_or_default();
+            if !opts.contains(&module) {
+                opts.push(module);
+            }
+            config.optional = Some(opts);
+        }
+    }
+
+    let content = toml::to_string_pretty(&config).context("Failed to serialise cordon.toml")?;
+    fs::write("cordon.toml", content).context("Failed to write cordon.toml")?;
+    println!("✅ Updated profile in cordon.toml");
+    Ok(())
+}
+
+/// Enum for unsetting profile fields in cordon.toml.
+pub enum ProfileUnsetField {
+    Network,
+    Gui,
+    OptionalRemove(String),
+}
+
+/// Unsets a profile field in cordon.toml if it exists.
+pub fn unset_profile_field(field: ProfileUnsetField) -> Result<()> {
+    let mut config = match find_user_config()? {
+        Some(c) => c,
+        None => {
+            println!("⚠️  No cordon.toml found.");
+            return Ok(());
+        }
+    };
+
+    match field {
+        ProfileUnsetField::Network => {
+            config.network = None;
+        }
+        ProfileUnsetField::Gui => {
+            config.gui = None;
+        }
+        ProfileUnsetField::OptionalRemove(module) => {
+            if let Some(mut opts) = config.optional {
+                opts.retain(|m| m != &module);
+                if opts.is_empty() {
+                    config.optional = None;
+                } else {
+                    config.optional = Some(opts);
+                }
+            }
+        }
+    }
+
+    let content = toml::to_string_pretty(&config).context("Failed to serialise cordon.toml")?;
+    fs::write("cordon.toml", content).context("Failed to write cordon.toml")?;
+    println!("✅ Updated profile in cordon.toml");
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_userconfig_defaults() {
+        let toml = r#"
+[[mount]]
+src = "/tmp"
+dest = "/tmp"
+mode = "rw"
+when = "always"
+required = false
+"#;
+        let config: UserConfig = toml::from_str(toml).unwrap();
+        assert!(config.network.is_none());
+        assert!(config.gui.is_none());
+        assert!(config.optional.is_none());
+        assert_eq!(config.mounts.len(), 1);
+    }
+
+    #[test]
+    fn test_userconfig_profile_network() {
+        let toml = r#"
+network = "allow"
+"#;
+        let config: UserConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.network.as_deref(), Some("allow"));
+        assert!(config.gui.is_none());
+        assert_eq!(config.mounts.len(), 0);
+    }
+
+    #[test]
+    fn test_userconfig_profile_gui() {
+        let toml = r#"
+gui = true
+"#;
+        let config: UserConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.gui, Some(true));
+    }
+
+    #[test]
+    fn test_userconfig_profile_optional() {
+        let toml = r#"
+optional = ["audio_pipewire"]
+"#;
+        let config: UserConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.optional.as_deref(), Some(vec!["audio_pipewire".to_string()].as_slice()));
+    }
+
+    #[test]
+    fn test_userconfig_profile_full() {
+        let toml = r#"
+network = "full"
+gui = false
+optional = ["dbus_session", "audio_pipewire"]
+
+[[mount]]
+src = "/etc/issue"
+dest = "/etc/issue"
+mode = "ro"
+when = "always"
+required = false
+"#;
+        let config: UserConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.network.as_deref(), Some("full"));
+        assert_eq!(config.gui, Some(false));
+        assert_eq!(
+            config.optional.as_deref(),
+            Some(vec!["dbus_session".to_string(), "audio_pipewire".to_string()].as_slice())
+        );
+        assert_eq!(config.mounts.len(), 1);
+    }
 }

@@ -32,10 +32,22 @@ pub enum Commands {
         #[arg(last = true, required = true)]
         cmd: Vec<String>,
 
-        /// Allow network access inside the sandbox.
-        /// When enabled, /etc and /run are mounted read-only for DNS resolution.
+        /// Network permission profile:
+        ///   disable — no network access at all (default)
+        ///   allow   — only domains in proxy.toml are reachable
+        ///   full    — unrestricted internet access
+        #[arg(long, value_name = "PROFILE", default_value = "disable")]
+        net: crate::sandbox::network::NetworkMode,
+
+        /// Allow these domains through the network proxy (if active).
+        /// Multiple domains can be specified: '--domain google.com --domain github.com' or comma-separated.
+        #[arg(long = "domain", value_name = "DOMAIN", value_delimiter = ',')]
+        domains: Vec<String>,
+
+        /// Enable detailed technical tracing logs on stderr.
+        /// Also writes a full trace to ~/.config/cordon/logs/last-run.log on every run.
         #[arg(long, default_value_t = false)]
-        network: bool,
+        debug: bool,
 
         /// Show the bubblewrap command and exit without executing it.
         /// For debugging purposes, to see exactly what cordon is doing under the hood.
@@ -71,4 +83,50 @@ pub enum Commands {
 
     /// Open the local cordon.toml in the system default editor.
     Edit {},
+
+    /// Set a default profile field in the per-project cordon.toml.
+    #[command(arg_required_else_help = true)]
+    Set {
+        /// Network permission profile (disable, allow, full).
+        #[arg(long, value_name = "PROFILE")]
+        net: Option<crate::sandbox::network::NetworkMode>,
+
+        /// Enable GUI app support (X11/Wayland/fonts) by default.
+        #[arg(long)]
+        gui: bool,
+
+        /// Add an optional module to the default profile.
+        #[arg(long, value_name = "MODULE")]
+        optional: Option<String>,
+    },
+
+    /// Unset a default profile field in the per-project cordon.toml.
+    #[command(arg_required_else_help = true)]
+    Unset {
+        /// Remove network permission profile from defaults.
+        #[arg(long)]
+        net: bool,
+
+        /// Remove GUI app support from defaults.
+        #[arg(long)]
+        gui: bool,
+
+        /// Remove an optional module from the default profile.
+        #[arg(long, value_name = "MODULE")]
+        optional: Option<String>,
+    },
+
+    /// Check that the sandbox is ready to run: bwrap, namespaces, AppArmor, and modules.
+    /// Exits 0 if all checks pass, 1 if any check fails.
+    Check,
+
+    /// List all mounts that would be active in the next sandbox run.
+    /// Shows system.toml entries and cordon.toml project mounts side-by-side.
+    List,
+
+    /// Show the contents of system.toml without running a scan.
+    /// Displays each module's name, verification status, bind type, when category, and source path.
+    /// Also shows the last_scan timestamp and cordon_version from the file header.
+    /// Useful for debugging "why isn't my module being mounted?" without running any command.
+    Status,
 }

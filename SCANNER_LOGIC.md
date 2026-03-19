@@ -1,6 +1,8 @@
 # Cordon — Scanner & Architecture Notes
 
-> Internal design document. Progress tracking and pending tasks live in [PROGRESS.md](PROGRESS.md).
+> **Reading order:** [README.md](README.md) → [COMMANDS.md](COMMANDS.md) → **SCANNER_LOGIC.md** → [MODULE_INFO.md](MODULE_INFO.md) → [PROGRESS.md](PROGRESS.md)
+>
+> This document covers internal scanner design. For per-file developer docs, see [MODULE_INFO.md](MODULE_INFO.md).
 
 ---
 
@@ -13,9 +15,10 @@
 │  cordon.toml — optional per-project user mounts (per project)    │
 └──────────────────────────────────────────────────────────────────┘
 
-cordon run  →  integrity_check()  →  build_bwrap()  →  exec
-cordon scan →  full_scan()        →  write system.toml
-cordon add  →  add_user_mount()   →  write/update cordon.toml
+cordon run   →  integrity_check()  →  build_bwrap()  →  exec
+cordon scan  →  full_scan()        →  write system.toml
+cordon add   →  add_user_mount()   →  write/update cordon.toml
+cordon set   →  set_profile_field()→  write/update cordon.toml
 ```
 
 ---
@@ -71,3 +74,9 @@ predictable and auditable.
 **Why is `DBUS_SESSION_BUS_ADDRESS` not forwarded as an env var?**
 The socket is bind-mounted directly via `system.toml`. Forwarding the address would let the
 sandboxed process reach outside the mount namespace. Binding the socket file is safer.
+
+---
+
+## Next
+
+→ [MODULE_INFO.md](MODULE_INFO.md) — per-file breakdown of every source file in `src/`

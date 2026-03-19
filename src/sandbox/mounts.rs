@@ -1,5 +1,6 @@
 use crate::config::SystemConfig;
 use std::process::Command;
+use tracing::{info, warn};
 
 pub fn apply_system_mounts(
     bwrap: &mut Command,
@@ -24,8 +25,8 @@ pub fn apply_system_mounts(
         //    a useful warning for modules the user explicitly requested
         if !mount.verified {
             if mount.when == "optional" && optional.contains(&mount.name) {
-                eprintln!(
-                    "warning: optional module '{}' was requested but is unverified — skipping",
+                warn!(
+                    "optional module '{}' was requested but is unverified — skipping",
                     mount.name
                 );
             }
@@ -45,7 +46,7 @@ pub fn apply_user_mounts(bwrap: &mut Command, dry_run: bool) {
         Ok(Some(cfg)) => cfg,
         Ok(None) => return, // no cordon.toml found up the directory tree
         Err(e) => {
-            eprintln!("warning: could not read cordon.toml: {}", e);
+            warn!("could not read cordon.toml: {}", e);
             return;
         }
     };
@@ -60,6 +61,7 @@ pub fn apply_user_mounts(bwrap: &mut Command, dry_run: bool) {
         true
     } else {
         // Prompt the user before exposing any extra paths from cordon.toml.
+        info!("cordon.toml found with custom path exposures — prompting user");
         println!();
         println!("⚠️  cordon.toml found with custom path exposures.");
         loop {
@@ -70,6 +72,7 @@ pub fn apply_user_mounts(bwrap: &mut Command, dry_run: bool) {
             match input.trim().to_uppercase().as_str() {
                 "" | "Y" => break true,
                 "N" => {
+                    info!("User declined cordon.toml mounts");
                     println!("   Skipping cordon.toml mounts.");
                     break false;
                 }
