@@ -84,6 +84,38 @@ pub enum Commands {
     /// Open the local cordon.toml in the system default editor.
     Edit {},
 
+    /// Set a default profile field in the per-project cordon.toml.
+    #[command(arg_required_else_help = true)]
+    Set {
+        /// Network permission profile (disable, allow, full).
+        #[arg(long, value_name = "PROFILE")]
+        net: Option<crate::sandbox::network::NetworkMode>,
+
+        /// Enable GUI app support (X11/Wayland/fonts) by default.
+        #[arg(long)]
+        gui: bool,
+
+        /// Add an optional module to the default profile.
+        #[arg(long, value_name = "MODULE")]
+        optional: Option<String>,
+    },
+
+    /// Unset a default profile field in the per-project cordon.toml.
+    #[command(arg_required_else_help = true)]
+    Unset {
+        /// Remove network permission profile from defaults.
+        #[arg(long)]
+        net: bool,
+
+        /// Remove GUI app support from defaults.
+        #[arg(long)]
+        gui: bool,
+
+        /// Remove an optional module from the default profile.
+        #[arg(long, value_name = "MODULE")]
+        optional: Option<String>,
+    },
+
     /// Check that the sandbox is ready to run: bwrap, namespaces, AppArmor, and modules.
     /// Exits 0 if all checks pass, 1 if any check fails.
     Check,

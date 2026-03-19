@@ -101,6 +101,12 @@ cordon list
 
 # Add a custom path to the per-project cordon.toml
 cordon add /path/to/dir --mode rw
+
+# Set default profile flags in the per-project cordon.toml
+cordon set --net=allow --gui --optional audio_pipewire
+
+# Unset default profile flags from the per-project cordon.toml
+cordon unset --net --gui --optional audio_pipewire
 ```
 
 ---

@@ -210,6 +210,28 @@ Opens the nearest `cordon.toml` in `$EDITOR` (falls back to `vi`). Creates a bla
 
 ---
 
+## `cordon set` — Set project profile defaults
+
+```
+cordon set [--net <PROFILE>] [--gui] [--optional <MODULE>]
+```
+
+Status: `[IMPLEMENTED — Phase 2.7]`
+
+Sets default run profile options in the nearest `cordon.toml`. This allows `cordon run -- <cmd>` to automatically apply these settings without needing explicit CLI flags. CLI flags will always override these profile defaults.
+
+## `cordon unset` — Remove project profile defaults
+
+```
+cordon unset [--net] [--gui] [--optional <MODULE>]
+```
+
+Status: `[IMPLEMENTED — Phase 2.7]`
+
+Removes specific default run profile options from the nearest `cordon.toml`.
+
+---
+
 ## Exit Codes
 
 | Code | Meaning |
@@ -359,28 +381,7 @@ cordon run --profile GUI_APP -- discord
 cordon run --profile GUI_APP --net=full -- discord  # CLI flag overrides profile
 ```
 
----
 
-## `cordon run` with profile flags in `cordon.toml`
-
-Status: `[PLANNED — Phase 2.7]`
-
-Adds `network`, `gui`, and `optional` fields to `cordon.toml` so `cordon run -- <cmd>` with no CLI flags automatically applies the project's declared settings:
-
-```toml
-network = "allow"
-gui = true
-optional = ["audio_pipewire", "dbus_session"]
-
-[[mount]]
-src  = "/home/user/assets"
-dest = "/home/user/assets"
-mode = "ro"
-```
-
-CLI flags always override `cordon.toml` values.
-
----
 
 ## `cordon run` with per-project module overrides
 

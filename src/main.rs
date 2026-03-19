@@ -137,6 +137,37 @@ fn main() {
 
         Commands::Edit {} => config::edit_user_config().map_err(Into::into),
 
+        Commands::Set { net, gui, optional } => (|| -> anyhow::Result<()> {
+            if let Some(n) = net {
+                let n_str = match n {
+                    crate::sandbox::network::NetworkMode::Disable => "disable",
+                    crate::sandbox::network::NetworkMode::Allow => "allow",
+                    crate::sandbox::network::NetworkMode::Full => "full",
+                };
+                config::set_profile_field(config::ProfileField::Network(n_str.to_string()))?;
+            }
+            if gui {
+                config::set_profile_field(config::ProfileField::Gui(true))?;
+            }
+            if let Some(opt) = optional {
+                config::set_profile_field(config::ProfileField::OptionalAdd(opt))?;
+            }
+            Ok(())
+        })(),
+
+        Commands::Unset { net, gui, optional } => (|| -> anyhow::Result<()> {
+            if net {
+                config::unset_profile_field(config::ProfileUnsetField::Network)?;
+            }
+            if gui {
+                config::unset_profile_field(config::ProfileUnsetField::Gui)?;
+            }
+            if let Some(opt) = optional {
+                config::unset_profile_field(config::ProfileUnsetField::OptionalRemove(opt))?;
+            }
+            Ok(())
+        })(),
+
         Commands::Check => commands::check::run_check().map_err(Into::into),
 
         Commands::List => commands::list::run_list().map_err(Into::into),

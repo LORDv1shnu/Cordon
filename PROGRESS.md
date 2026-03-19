@@ -96,6 +96,17 @@ All completed work and planned work lives here.
 
 ---
 
+### Phase 2.7 — Project Profile (Default Run Mode) ✅
+
+| Feature | Notes |
+|---------|-------|
+| `--net`, `--gui`, `--optional` profile persistence | Extended `UserConfig` with optional profile fields in `cordon.toml` |
+| `cordon set` subcommand | e.g. `cordon set --net=allow`, `cordon set --gui`, `cordon set --optional dbus_session` |
+| `cordon unset` subcommand | Safely removes profile fields without touching user mounts |
+| Transparent CLI overrides | CLI flags always take precedence over `cordon.toml` defaults at runtime (implemented in `executor.rs`) |
+
+---
+
 ### Code Quality Pass ✅
 
 | Area | Change |
@@ -120,28 +131,6 @@ All completed work and planned work lives here.
 ## Pending
 
 ### Phase 2.6 — Scanner Completion `[COMPLETED]`
-
----
-
-### Phase 2.7 — Project Profile (Default Run Mode) `[PLANNED]`
-
-**`cordon.toml` Flag Storage**
-- Add `network`, `gui`, and `optional` fields to `UserConfig` in `config.rs`.
-- When `cordon run -- <cmd>` is invoked with no flags, read these fields from `cordon.toml` and apply them automatically.
-- CLI flags always override `cordon.toml` values — explicit beats implicit.
-- `cordon.toml` with flags example:
-  ```toml
-  network = true
-  gui = true
-  optional = ["audio_pipewire", "dbus_session"]
-
-  [[mount]]
-  src = "/home/user/assets"
-  dest = "/home/user/assets"
-  mode = "ro"
-  ```
-- Update `apply_user_mounts()` in `mounts.rs` and flag resolution in `executor.rs` to merge these values.
-- This enables: `cordon run -- discord` with no flags, if `cordon.toml` declares what it needs.
 
 ---
 

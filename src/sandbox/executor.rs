@@ -23,12 +23,35 @@ use crate::sandbox::proxy::ProxyHandle;
 /// All mount paths come from system.toml and cordon.toml — nothing is hardcoded.
 pub fn run_sandboxed(
     cmd: Vec<String>,
-    net: NetworkMode,
+    mut net: NetworkMode,
     domains: Vec<String>,
     dry_run: bool,
-    gui: bool,
-    optional: Vec<String>,
+    mut gui: bool,
+    mut optional: Vec<String>,
 ) -> Result<()> {
+    // 0. Merge user profile defaults if CLI arguments are at default values
+    if let Ok(Some(cfg)) = crate::config::find_user_config() {
+        if net == NetworkMode::Disable {
+            if let Some(n) = cfg.network {
+                net = match n.as_str() {
+                    "allow" => NetworkMode::Allow,
+                    "full" => NetworkMode::Full,
+                    _ => NetworkMode::Disable,
+                };
+            }
+        }
+        if !gui {
+            gui = cfg.gui.unwrap_or(false);
+        }
+        if let Some(opts) = cfg.optional {
+            for opt in opts {
+                if !optional.contains(&opt) {
+                    optional.push(opt);
+                }
+            }
+        }
+    }
+
     // 1. Verify bwrap is installed.
     if std::process::Command::new("bwrap")
         .arg("--version")

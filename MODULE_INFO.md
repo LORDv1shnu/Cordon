@@ -88,7 +88,7 @@ ask the user about it during the next `cordon scan`. No code change needed.
 **Argument structs only.** No logic lives here.
 
 - `Cli` is the top-level clap `Parser`.
-- `Commands` is the `Subcommand` enum: `Run { ... }`, `Scan {}`, `Add { ... }`.
+- `Commands` is the `Subcommand` enum: `Run { ... }`, `Scan {}`, `Add { ... }`, `Set { ... }`, `Unset { ... }`.
 - `Run` has: `cmd`, `network`, `dry_run`, `gui`, `optional`.
 - `#[arg(last = true)]` on `cmd` is what makes `cordon run -- <cmd>` work — everything after `--` goes to the sandboxed process.
 
@@ -123,6 +123,8 @@ ask the user about it during the next `cordon scan`. No code change needed.
 | `save_system_config()` | Writes `system.toml` with `fd-lock` write lock to prevent concurrent corruption |
 | `find_user_config()` | Walks up the directory tree from cwd looking for `cordon.toml`, stops at `/` |
 | `add_user_mount()` | Appends a `UserMount` to `cordon.toml` in cwd, creates file if absent |
+| `set_profile_field()` | Sets a `network`, `gui`, or `optional` profile default in `cordon.toml` |
+| `unset_profile_field()` | Removes a profile default flag from `cordon.toml` |
 
 **Dev note:** `save_system_config` uses `fd-lock` because `cordon scan` could be Ctrl-C'd mid-write. Any concurrent `cordon run` would then see a partial file. The lock prevents that.
 
