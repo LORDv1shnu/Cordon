@@ -19,13 +19,12 @@ Cordon/
 │   │   ├── mod.rs
 │   │   ├── env_resolver.rs
 │   │   ├── full_scan.rs
-│   │   ├── integrity.rs
-│   │   └── module_scan.rs
-│   └── sandbox/            # Sandbox runner — builds + executes bwrap
-│       ├── mod.rs
-│       ├── builder.rs
-│       ├── mounts.rs
-│       └── executor.rs
+│   ├── commands/           # Standalone subcommand implementations
+│   │   ├── check.rs
+│   │   ├── list.rs
+│   │   └── status.rs       # ← NEW: cordon status (shows system.toml)
+│   └── suggestions.rs      # ← NEW: smart error suggestions & synopses
+├── COMMANDS.md             # ← NEW: full command reference & future plans
 ├── MODULE_INFO.md          # ← you are here
 ├── README.md               # User-facing docs (what the product does)
 ├── PROGRESS.md             # All completed and planned work
@@ -69,10 +68,18 @@ ask the user about it during the next `cordon scan`. No code change needed.
 **Pure router.** Contains zero business logic.
 
 - Parses CLI via clap, then does one `match` → dispatches to `sandbox::run_sandboxed`, `scanner::full_scan`, or `config::add_user_mount`.
-- Contains the `exit_codes` module with named constants (0, 1, 2, 125, 126, 127).
-- Contains `extract_exit_code()` which detects the `"exit code: N"` sentinel string that `executor.rs` encodes into anyhow errors, then calls `std::process::exit(N)` to forward it transparently.
+**Dev note:** if you add a new subcommand, you need to touch `cli.rs` (variant), `main.rs` (dispatch), and `suggestions.rs` (synopsis & known commands list).
 
-**Dev note:** if you add a new subcommand, the only files you need to touch are `cli.rs` (add the variant) and `main.rs` (add the dispatch arm).
+---
+
+## `src/suggestions.rs`
+
+**Smart error handling** using Levenshtein distance.
+
+- `KNOWN_COMMANDS` — list of all implemented subcommand names.
+- `command_synopsis()` — returns a one-line usage string for each command.
+- `closest_command()` — finds the best match for a typo within 3 edits.
+- `print_unknown_command_error()` / `print_missing_arg_error()` — formatted, actionable error printers called from `main.rs`.
 
 ---
 
