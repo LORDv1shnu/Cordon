@@ -1,6 +1,8 @@
 # Cordon — Command Reference
 
-All commands, flags, and their combinations, current and planned.
+> **Reading order:** [README.md](README.md) → **COMMANDS.md** → [SCANNER_LOGIC.md](SCANNER_LOGIC.md) → [MODULE_INFO.md](MODULE_INFO.md) → [PROGRESS.md](PROGRESS.md)
+>
+> New to Cordon? Start with [README.md](README.md) first. This document is the exhaustive flag reference.
 
 ---
 
@@ -12,18 +14,6 @@ All commands, flags, and their combinations, current and planned.
 | `[PLANNED — Phase N]` | Not yet implemented; belongs to the phase shown |
 | `<value>` | Required user-supplied argument |
 | `[value]` | Optional argument |
-
----
-
-## Top-level help
-
-```
-cordon --help
-cordon --version
-cordon <subcommand> --help
-```
-
-Status: `[IMPLEMENTED]`
 
 ---
 
@@ -121,6 +111,8 @@ Triggered automatically on first `cordon run` when `system.toml` is missing.
 | 3 | `gui` — `x11_socket`, `fonts`, `wayland_runtime`, `dconf_runtime`, `dbus_session`, `gpu_dri` | Prompt: "Include GUI support?" |
 | 4 | `optional` — home, locale, timezone, ld.so.cache, audio, dbus, dconf, GPU | Per-module opt-in prompts |
 
+> For a deep-dive into scanner internals, see [SCANNER_LOGIC.md](SCANNER_LOGIC.md).
+
 ---
 
 ## `cordon check` — Pre-flight health check
@@ -160,6 +152,23 @@ Displays all mounts that would be applied in the next sandbox run, without execu
 
 ---
 
+## `cordon status` — Show `system.toml` state
+
+```
+cordon status
+```
+
+Status: `[IMPLEMENTED — Phase 3]`
+
+Displays the contents of `system.toml` without triggering a scan:
+
+- Each module: name, verification status (`✅` / `⚠️`), source path, `when` category.
+- Header: `last_scan` timestamp, `cordon_version`.
+
+Useful for debugging "why isn't my module being mounted?" without running a full command.
+
+---
+
 ## `cordon add` — Add a project mount
 
 ```
@@ -177,10 +186,7 @@ Appends a new mount entry to the nearest `cordon.toml` (creates it if absent). T
 ### Examples
 
 ```bash
-# Add a directory read-only
 cordon add /home/user/assets --mode ro
-
-# Add a directory read-write
 cordon add /tmp/scratch --mode rw
 ```
 
@@ -218,7 +224,24 @@ cordon set [--net <PROFILE>] [--gui] [--optional <MODULE>]
 
 Status: `[IMPLEMENTED — Phase 2.7]`
 
-Sets default run profile options in the nearest `cordon.toml`. This allows `cordon run -- <cmd>` to automatically apply these settings without needing explicit CLI flags. CLI flags will always override these profile defaults.
+Persists runtime flags into the nearest `cordon.toml` as project profile defaults. On subsequent `cordon run` calls with no flags, these values are applied automatically. **CLI flags always override cordon.toml values.**
+
+### Example
+
+```bash
+# Set network + GUI + audio as project defaults
+cordon set --net=allow --gui --optional audio_pipewire
+
+# cordon.toml now contains:
+# network = "allow"
+# gui = true
+# optional = ["audio_pipewire"]
+
+# This run uses the profile — no flags required
+cordon run -- discord
+```
+
+---
 
 ## `cordon unset` — Remove project profile defaults
 
@@ -228,7 +251,25 @@ cordon unset [--net] [--gui] [--optional <MODULE>]
 
 Status: `[IMPLEMENTED — Phase 2.7]`
 
-Removes specific default run profile options from the nearest `cordon.toml`.
+Removes specific profile defaults from `cordon.toml`. Mounts and other fields are not touched.
+
+### Example
+
+```bash
+cordon unset --gui --optional audio_pipewire
+```
+
+---
+
+## Config Files
+
+| File | Location | Purpose |
+|------|----------|---------|
+| `core.toml` | embedded in binary | Module blueprint (immutable at runtime) |
+| `system.toml` | `~/.config/cordon/system.toml` | Scanner output — verified system mount entries |
+| `proxy.toml` | `./proxy.toml` or `~/.config/cordon/proxy.toml` | Domain allow-list for `--net=allow` |
+| `cordon.toml` | `<project>/cordon.toml` (walks up) | Per-project mounts and profile defaults |
+| `last-run.log` | `~/.config/cordon/logs/last-run.log` | Full `TRACE` log of the last run |
 
 ---
 
@@ -250,9 +291,7 @@ Removes specific default run profile options from the nearest `cordon.toml`.
 
 Status: `[IMPLEMENTED — Phase 3]`
 
-All error cases where a user makes a typo or omits a required argument produce actionable output instead of raw clap errors:
-
-### Unknown / misspelled subcommand
+All error cases where a user makes a typo or omits a required argument produce actionable output instead of raw clap errors.
 
 ```
 $ cordon statis
@@ -263,34 +302,7 @@ error: cordon statis — unknown subcommand
   Usage:  cordon status
 ```
 
-The closest matching command is found using Levenshtein edit distance (≤ 3 edits). If nothing is close enough, a hint to run `cordon --help` is shown instead.
-
-### Missing required argument
-
-```
-$ cordon add
-error: missing required argument: <PATH>
-
-  Usage:  cordon add <path> [--mode <ro|rw>]
-
-  Run cordon add --help for full details.
-```
-
-Full syntax is always shown for the command that was attempted.
-
----
-
-## Config Files
-
-| File | Location | Purpose |
-|------|----------|---------|
-| `core.toml` | embedded in binary | Module blueprint (immutable at runtime) |
-| `system.toml` | `~/.config/cordon/system.toml` | Scanner output — verified system mount entries |
-| `proxy.toml` | `./proxy.toml` or `~/.config/cordon/proxy.toml` | Domain allow-list for `--net=allow` |
-| `cordon.toml` | `<project>/cordon.toml` (walks up) | Per-project user-defined mounts |
-| `last-run.log` | `~/.config/cordon/logs/last-run.log` | Full `TRACE` log of the last run |
-
----
+The closest matching command is found using Levenshtein edit distance (≤ 3 edits).
 
 ---
 
@@ -298,110 +310,26 @@ Full syntax is always shown for the command that was attempted.
 
 ---
 
-## `cordon status` — Show `system.toml` state without scanning
-
-```
-cordon status
-```
-
-Status: `[IMPLEMENTED — Phase 3]`
-
-Displays the contents of `system.toml` without triggering a scan:
-
-- Each module: name, verification status (`✅` / `⚠️`), source path, `when` category.
-- Header: `last_scan` timestamp, `cordon_version`.
-
-Useful for debugging "why isn't my module being mounted?" without running a full command.
-
----
-
-## `cordon profile create` — Create a named run profile
+## `cordon profile create` / `list` / `delete`
 
 ```
 cordon profile create <name> [--net <PROFILE>] [--gui] [--optional <MODULE>]...
-```
-
-Status: `[PLANNED — Phase 2.8]`
-
-Creates a named profile stored in `~/.config/cordon/profiles.toml`:
-
-```toml
-[profile.GUI_APP]
-network = "allow"
-gui = true
-optional = ["audio_pipewire", "dbus_session"]
-```
-
----
-
-## `cordon profile list` — List all profiles
-
-```
 cordon profile list
-```
-
-Status: `[PLANNED — Phase 2.8]`
-
-Prints all profiles defined in `~/.config/cordon/profiles.toml` with their settings.
-
----
-
-## `cordon profile delete` — Delete a profile
-
-```
 cordon profile delete <name>
 ```
 
 Status: `[PLANNED — Phase 2.8]`
 
-Removes the named profile from `profiles.toml`.
+Named profiles stored in `~/.config/cordon/profiles.toml`. Use with `cordon run --profile <name>`.
 
----
-
-## `cordon run --profile` — Run with a named profile
-
+Resolution order (lowest → highest priority):
 ```
-cordon run --profile <name> -- <cmd> [args...]
+built-in defaults → named profile → cordon.toml → CLI flags
 ```
-
-Status: `[PLANNED — Phase 2.8]`
-
-Loads the named profile's settings, then overlays any additional CLI flags on top.
-
-**Resolution order (lowest → highest priority):**
-
-```
-built-in defaults → profile → cordon.toml → CLI flags
-```
-
-### Example
-
-```bash
-cordon run --profile GUI_APP -- discord
-cordon run --profile GUI_APP --net=full -- discord  # CLI flag overrides profile
-```
-
-
-
-## `cordon run` with per-project module overrides
-
-```toml
-# cordon.toml
-require_optional = ["audio_pipewire"]
-```
-
-Status: `[PLANNED — Phase 4]`
-
-Auto-activates the listed optional modules for every `cordon run` in this project — no need to pass `--optional` every time.
 
 ---
 
 ## `cordon run --quiet` / `--verbose`
-
-```
-cordon run --quiet -- <cmd>
-cordon run --verbose -- <cmd>
-```
 
 Status: `[PLANNED — Phase 4]`
 
@@ -416,15 +344,13 @@ Status: `[PLANNED — Phase 4]`
 
 Status: `[PLANNED — Phase 3]`
 
-Wraps bwrap with `strace` to capture blocked syscalls and paths, then parses and displays what the sandboxed app tried to access but could not. Writes a structured log of blocked paths after each run.
+Wraps bwrap with `strace` to capture blocked syscalls and paths, then parses and displays what the sandboxed app tried to access but could not.
 
 ---
 
 ## Phase 5 — TUI
 
 Status: `[PLANNED — Phase 5]`
-
-Interactive terminal UI:
 
 - Directory picker for mounts
 - Toggle network / gui / dry-run visually
@@ -442,3 +368,9 @@ Status: `[PLANNED — Phase 6]`
 | Built-in profiles | `nodejs`, `python`, `rust` — pre-configured optional module sets |
 | GitHub Actions CI | Smoke tests on `x86_64-unknown-linux-gnu` |
 | Prebuilt binaries | Binary releases via GitHub Releases |
+
+---
+
+## Next
+
+→ [SCANNER_LOGIC.md](SCANNER_LOGIC.md) — how the scanner and integrity check work internally
