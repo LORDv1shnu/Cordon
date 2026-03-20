@@ -163,51 +163,206 @@
 
 **`cordon profile` Subcommand**
 
-- `cordon profile create <name> [--net <PROFILE>] [--gui] [--optional <mod>]`
-- Profiles stored in `~/.config/cordon/profiles.toml`
-- `cordon run --profile <name> -- <cmd>` loads the profile, then CLI flags override
-- `cordon profile list` / `cordon profile delete <name>`
-- Resolution order: built-in defaults → named profile → `cordon.toml` → CLI flags
+Reusable named sandbox profiles stored at `~/.config/cordon/profiles.toml`.
+
+- `cordon profile create <name> [--net <PROFILE>] [--gui] [--optional <mod>]...`
+- `cordon profile list` — show all saved profiles in a table
+- `cordon profile delete <name>` — remove a named profile
+- `cordon profile show <name>` — dump a single profile's fields
+- `cordon run --profile <name> -- <cmd>` — load profile, CLI flags still override
+- Resolution order (lowest → highest priority):
+  ```
+  built-in defaults → named profile → cordon.toml → CLI flags
+  ```
+
+**Built-in starter profiles:**
+
+| Profile | Preset |
+|---------|--------|
+| `python` | `--net=allow`, `ld_so_cache`, `locale_files` |
+| `node` | `--net=allow`, `ld_so_cache`, `home_config` |
+| `rust` | `--net=allow` (cargo fetch), `ld_so_cache` |
+| `gui-app` | `--gui`, `audio_pipewire`, `dbus_session`, `gpu_dri` |
 
 ---
 
-### Phase 3 — Observability (Remaining) `[PLANNED]`
+### Phase 3 (remaining) — Observability `[PLANNED]`
 
-**strace Integration**
-- Wrap bwrap with strace, capture blocked syscalls and paths.
-- Parse strace output — show what the app tried to access but couldn't.
-- Write a structured log of blocked paths after each run.
+**strace / Access-Denied Logger**
+- Wrap bwrap with `strace -e trace=openat,open,access,stat` to capture denied path accesses.
+- Parse strace output after the run — show a sorted table of "what the app couldn't see".
+- Activated via `cordon run --trace -- <cmd>`.
+- Write structured denied-paths report to `~/.config/cordon/logs/last-trace.log`.
+- Let users pipe these findings directly into `cordon add` with a `--from-trace` flag:
+  ```bash
+  cordon run --trace -- my-app 2>&1 | cordon add --from-trace
+  ```
+
+**`cordon log` Subcommand**
+- `cordon log` — tail / pretty-print `last-run.log` without knowing its path.
+- `cordon log --last <n>` — show only the last N lines.
+- `cordon log --errors` — filter to ERROR/WARN lines only.
 
 ---
 
-### Phase 4 — Polish & DX `[PLANNED]`
+### Phase 4 — Polish & Developer Experience `[PLANNED]`
 
 **`--quiet` / `--verbose` Flags**
-- `--quiet`: suppress all Cordon output.
-- `--verbose`: print every bwrap argument; show each mount as it is applied.
+- `--quiet`: suppress all Cordon banners and status output; only show sandboxed command output.
+- `--verbose`: print every bwrap argument on its own line; show each mount as it's applied.
+
+**`cordon init` Subcommand**
+- Scaffolds a `cordon.toml` in the current directory interactively.
+- Asks: project type? network needed? GUI? which optional modules?
+- Outputs a ready-to-use `cordon.toml` — no manual editing needed.
+- For known project types (Cargo.toml, package.json, pyproject.toml), auto-detects and applies the right built-in profile.
+
+**Better `--help` / `--version` Exit Codes**
+- Fix known bug: `--version` and `--help` currently exit with code 2 due to the clap error handler catch-all.
+- Add `ErrorKind::DisplayHelp | ErrorKind::DisplayVersion` arm to `main.rs` that exits 0.
 
 **NixOS / Non-FHS Distro Support**
-- Auto-detect NixOS via `/etc/os-release` and adjust module `default_dir` values.
+- Auto-detect NixOS via `/etc/os-release`.
+- When detected, adjust `default_dir` values in the scanner (e.g., `/nix/store/…/bin` instead of `/usr/bin`).
+- Add a `--distro <name>` override flag for exotic setups.
 
-**Test Suite**
-- Unit tests for `resolve_env_vars()` and `resolve_dbus_socket()`.
-- Unit tests for `scan_module_at()` covering symlink, real dir, missing path.
-- Integration test: run a simple `echo` through the full sandbox stack.
-- CI workflow (GitHub Actions) for `x86_64-unknown-linux-gnu`.
-
----
-
-### Phase 5 — TUI `[PLANNED]`
-
-- Interactive directory picker
-- Toggle network / dry-run visually
-- View mounts before running
-- Edit `cordon.toml` via TUI
+**`cordon doctor` Subcommand**
+- Deeper diagnostic than `cordon check`: goes beyond green/red table.
+- Reports: kernel version, bwrap version, AppArmor status, available namespaces.
+- Detects common misconfigurations: Docker-in-Docker limits, WSL2 quirks, Flatpak environment.
+- Suggests the exact command to fix each issue.
 
 ---
 
-### Phase 6 — Profiles & Distribution `[PLANNED]`
+### Phase 4.5 — Resource Limits `[PLANNED]`
 
-- Built-in profiles (`nodejs`, `python`, `rust`) — pre-configured optional module sets
-- GitHub Actions smoke tests
-- Prebuilt binary releases
+Right now cordon only restricts *filesystem visibility*. These features extend sandboxing to *resource consumption*.
+
+**Memory Limit (`--mem <SIZE>`)**
+- Apply a cgroup v2 memory limit to the sandboxed process.
+- Example: `cordon run --mem=512m -- npm install`
+- Uses `systemd-run --scope` or writes directly to the cgroup hierarchy.
+- On OOM: cordon prints a clear error (not a kernel OOM panic), exits 125.
+
+**CPU Limit (`--cpu <N>`)**
+- Restrict the sandbox to N logical CPUs (or a fraction via `--cpu=0.5`).
+- Uses `cgroup v2 cpu.max` or `cpuset`.
+- Prevents data-exfil via CPU side-channels or runaway compile jobs from eating the machine.
+
+**Time Limit (`--timeout <SECS>`)**
+- Kill the sandboxed process after N seconds.
+- Cordon handles the timer and prints `[CORDON] sandbox timed out after Ns`.
+- Exits with code 124 (matching the `timeout(1)` convention).
+
+**`--pid-limit <N>`**
+- Limit the number of processes the sandbox can spawn via cgroup `pids.max`.
+- Prevents fork bombs inside the sandbox.
+
+---
+
+### Phase 5 — Syscall Filtering (seccomp) `[PLANNED]`
+
+Adding a seccomp filter layer makes cordon a genuinely layered sandbox:
+
+```
+filesystem isolation (bwrap namespaces)   ← already done
+ + network isolation (proxy / unshare)    ← already done
+ + syscall filtering (seccomp)            ← this phase
+ + resource limits (cgroups)              ← Phase 4.5
+```
+
+**`--seccomp <PRESET>` Flag**
+- `basic` — block a minimal set of dangerous syscalls: `ptrace`, `process_vm_readv`, `userfaultfd`, `perf_event_open`, `kexec_load`.
+- `strict` — block everything not in a known-good allowlist (baseline: what Chrome uses).
+- `none` — disable seccomp entirely (for debugging).
+- Custom policy file: `--seccomp-file path/to/policy.bpf`.
+
+**How it works:**
+- Generate a BPF program from the preset and pass it to bwrap via `--seccomp <fd>`.
+- Policy is compiled at runtime from a human-readable TOML list in `core.toml`.
+- Deny action: `ENOSYS` (cleaner than SIGKILL — app gets a sensible error).
+
+**`cordon syscalls` Subcommand**
+- Lists the syscalls blocked by each preset in a readable table.
+- Example: `cordon syscalls --preset strict`
+
+---
+
+### Phase 5.5 — Reproducible Sandbox Specs `[PLANNED]`
+
+**`cordon.lock` File**
+
+The problem: `cordon.toml` says *what* to mount but not *what version* of the system modules were used. After a distro upgrade, the sandbox might silently behave differently.
+
+- After each successful run, write `cordon.lock` with:
+  - SHA-256 of every mount path used.
+  - Cordon version, scan timestamp.
+- `cordon run` checks the lock: if a mount path has changed (different inode / hash), warn the user before running.
+- `cordon lock update` — regenerate the lock after an intentional upgrade.
+- `cordon lock verify` — standalone check (useful in CI).
+
+**`cordon export` / `cordon import`**
+- `cordon export > sandbox-spec.json` — dump the full resolved mount list as JSON.
+- `cordon import sandbox-spec.json` — write a `cordon.toml` from an exported spec.
+- Makes sandbox configs portable and shareable between developers on the same distro.
+
+---
+
+### Phase 6 — Shell & Editor Integration `[PLANNED]`
+
+**Shell Completions**
+- `cordon completions bash` / `zsh` / `fish` — generate and print shell completion scripts.
+- Completions for: subcommand names, `--net` values, `--optional` module names, profile names.
+- Install instructions: `cordon completions zsh > ~/.zfunc/_cordon`.
+
+**`cordon wrap <cmd>`**
+- Creates a tiny shell wrapper script `~/.local/bin/<cmd>` that calls `cordon run -- <cmd> "$@"`.
+- Lets you transparently sandbox any tool without changing your workflow:
+  ```bash
+  cordon wrap node    # now `node` always runs sandboxed
+  cordon wrap pip     # same for pip
+  ```
+- `cordon wrap --show <cmd>` — print the wrapper script before installing.
+- `cordon unwrap <cmd>` — remove the wrapper.
+
+**Man Page**
+- Auto-generate `cordon.1` from clap definitions via `clap_mangen`.
+- Install to `~/.local/share/man/man1/cordon.1`.
+
+---
+
+### Phase 7 — TUI `[PLANNED]`
+
+A lightweight terminal UI for interactive sandbox configuration (using `ratatui`).
+
+- `cordon tui` — opens the TUI from any project directory.
+- **Mount panel:** directory tree picker; toggle ro/rw; shows cordon.toml entries live.
+- **Profile panel:** toggle network mode, GUI, optional modules via checkboxes.
+- **Preview panel:** shows the resolved bwrap command that would run.
+- **Run panel:** execute the sandboxed command from within the TUI; stream output live.
+- **Log panel:** tail `last-run.log` in a scrollable pane.
+
+---
+
+### Phase 8 — Distribution & CI `[PLANNED]`
+
+**GitHub Actions CI**
+- `cargo build --release` on `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`.
+- Run `test.sh` (the CLI regression suite) in CI on every PR.
+- Run `cargo test` (unit tests) in CI.
+- Lint: `cargo clippy -- -D warnings`.
+
+**Prebuilt Binary Releases**
+- GitHub Releases with prebuilt `cordon-linux-x86_64` and `cordon-linux-aarch64` binaries.
+- Install one-liner: `curl -fsSL https://... | sh`.
+- Checksums and signatures (via `minisign` or `cosign`).
+
+**Package Manager**
+- AUR package (`cordon-bin`) for Arch Linux users.
+- Nix flake / `default.nix` for NixOS users.
+- Homebrew tap (Linux only) for cross-distro reach.
+
+**`cordon install` Subcommand**
+- One-time system configuration: writes an AppArmor profile that allows cordon to use user namespaces without restriction.
+- Currently the fix is manual (`sudo sysctl ...`); this should be automated.
+- Example: `sudo cordon install` → writes `/etc/apparmor.d/cordon` and reloads.
