@@ -115,6 +115,7 @@ fn main() {
             dry_run,
             gui,
             optional,
+            profile,
         } => {
             // Initialise logging before doing anything else so that every
             // subsequent tracing macro call is captured.
@@ -123,7 +124,7 @@ fn main() {
                 std::process::exit(exit_codes::INTERNAL_ERROR);
             }
 
-            sandbox::run_sandboxed(cmd, net, domains, dry_run, gui, optional).map_err(Into::into)
+            sandbox::run_sandboxed(cmd, net, domains, dry_run, gui, optional, profile).map_err(Into::into)
         }
 
         Commands::Scan {} => {
@@ -173,6 +174,16 @@ fn main() {
         Commands::List => commands::list::run_list().map_err(Into::into),
 
         Commands::Status => commands::status::run_status().map_err(Into::into),
+
+        Commands::Profile { action } => match action {
+            cli::ProfileCommands::Create { name, net, gui, optional } => {
+                commands::profile::run_create(name, net, gui, optional)
+            }
+            cli::ProfileCommands::List => commands::profile::run_list(),
+            cli::ProfileCommands::Delete { name } => commands::profile::run_delete(name),
+            cli::ProfileCommands::Show { name } => commands::profile::run_show(name),
+        }
+        .map_err(Into::into),
     };
 
     if let Err(e) = result {

@@ -28,8 +28,33 @@ pub fn run_sandboxed(
     dry_run: bool,
     mut gui: bool,
     mut optional: Vec<String>,
+    profile: Option<String>,
 ) -> Result<()> {
-    // 0. Merge user profile defaults if CLI arguments are at default values
+    // 0a. Resolve named profile (before cordon.toml merge)
+    if let Some(ref profile_name) = profile {
+        let named = resolve_profile(profile_name)?;
+        if net == NetworkMode::Disable {
+            if let Some(n) = named.network {
+                net = match n.as_str() {
+                    "allow" => NetworkMode::Allow,
+                    "full" => NetworkMode::Full,
+                    _ => NetworkMode::Disable,
+                };
+            }
+        }
+        if !gui {
+            gui = named.gui.unwrap_or(false);
+        }
+        if let Some(opts) = named.optional {
+            for opt in opts {
+                if !optional.contains(&opt) {
+                    optional.push(opt);
+                }
+            }
+        }
+    }
+
+    // 0b. Merge user profile defaults if CLI arguments are at default values
     if let Ok(Some(cfg)) = crate::config::find_user_config() {
         if net == NetworkMode::Disable {
             if let Some(n) = cfg.network {
@@ -202,3 +227,50 @@ fn find_binary(name: &str) -> Option<std::path::PathBuf> {
     }
     None
 }
+
+fn resolve_profile(name: &str) -> Result<crate::config::NamedProfile> {
+    let config = crate::config::load_profiles().unwrap_or_default();
+    if let Some(p) = config.profiles.into_iter().find(|p| p.name == name) {
+        return Ok(p);
+    }
+    
+    // Check built-in profiles if it's not a saved profile
+    let built_in = match name {
+        "python" => Some(crate::config::NamedProfile {
+            name: "python".to_string(),
+            network: Some("allow".to_string()),
+            gui: None,
+            optional: Some(vec!["ld_so_cache".to_string(), "locale_files".to_string()]),
+        }),
+        "node" => Some(crate::config::NamedProfile {
+            name: "node".to_string(),
+            network: Some("allow".to_string()),
+            gui: None,
+            optional: Some(vec!["ld_so_cache".to_string(), "home_config".to_string()]),
+        }),
+        "rust" => Some(crate::config::NamedProfile {
+            name: "rust".to_string(),
+            network: Some("allow".to_string()),
+            gui: None,
+            optional: Some(vec!["ld_so_cache".to_string()]),
+        }),
+        "gui-app" => Some(crate::config::NamedProfile {
+            name: "gui-app".to_string(),
+            network: None,
+            gui: Some(true),
+            optional: Some(vec![
+                "audio_pipewire".to_string(),
+                "dbus_session".to_string(),
+                "gpu_dri".to_string(),
+            ]),
+        }),
+        _ => None,
+    };
+    
+    if let Some(p) = built_in {
+        Ok(p)
+    } else {
+        anyhow::bail!("Profile '{}' not found. Use 'cordon profile list' to see available profiles.", name);
+    }
+}
+

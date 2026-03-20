@@ -35,6 +35,7 @@ Status: `[IMPLEMENTED — Phase 1]`
 | `--domain <DOMAIN>` | string (repeatable) | — | Allow a specific domain through the proxy. Requires `--net=allow`. Can be repeated or comma-separated |
 | `--gui` | bool | `false` | Enable GUI app support — mounts X11 socket, Wayland runtime, fontconfig |
 | `--optional <MODULE>` | string (repeatable) | — | Activate an optional module by name (e.g. `audio_pipewire`, `dbus_session`) |
+| `--profile <NAME>` | string | — | Load a named profile from `profiles.toml` (e.g. `python`, `gui-app`) |
 | `--dry-run` | bool | `false` | Print the full bwrap command and exit without executing it |
 | `--debug` | bool | `false` | Enable verbose tracing logs on stderr; always writes to `~/.config/cordon/logs/last-run.log` |
 
@@ -306,19 +307,16 @@ The closest matching command is found using Levenshtein edit distance (≤ 3 edi
 
 ---
 
-# Planned Future Commands
-
----
-
-## `cordon profile create` / `list` / `delete`
+## `cordon profile create` / `list` / `delete` / `show`
 
 ```
 cordon profile create <name> [--net <PROFILE>] [--gui] [--optional <MODULE>]...
 cordon profile list
 cordon profile delete <name>
+cordon profile show <name>
 ```
 
-Status: `[PLANNED — Phase 2.8]`
+Status: `[IMPLEMENTED — Phase 2.8]`
 
 Named profiles stored in `~/.config/cordon/profiles.toml`. Use with `cordon run --profile <name>`.
 
@@ -326,6 +324,18 @@ Resolution order (lowest → highest priority):
 ```
 built-in defaults → named profile → cordon.toml → CLI flags
 ```
+
+**Built-in profiles:**
+| Name | net | gui | optional |
+|------|-----|-----|----------|
+| `python` | allow | — | `ld_so_cache`, `locale_files` |
+| `node` | allow | — | `ld_so_cache`, `home_config` |
+| `rust` | allow | — | `ld_so_cache` |
+| `gui-app` | — | true | `audio_pipewire`, `dbus_session`, `gpu_dri` |
+
+---
+
+# Planned Future Commands
 
 ---
 

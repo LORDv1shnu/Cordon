@@ -482,6 +482,65 @@ run_cordon rc out err remove
 [[ $rc -ne 0 ]] && pass "cordon remove (no path) exits non-zero" || fail "cordon remove (no path) should exit non-zero"
 
 # ─────────────────────────────────────────────────────────────────────────────
+#  §13 — cordon profile
+# ─────────────────────────────────────────────────────────────────────────────
+section "13. cordon profile"
+WORKSPACE="$(fresh_workspace v13)"
+
+# Capture original HOME
+ORIG_HOME="${HOME:-}"
+TEST_HOME="$(fresh_workspace v13_home)"
+export HOME="$TEST_HOME"
+
+run_cordon rc out err profile create python --net=allow --optional ld_so_cache
+assert_exit         "cordon profile create exits 0" 0 $rc
+assert_file_exists  "$TEST_HOME/.config/cordon/profiles.toml" "profiles.toml created"
+assert_contains     "profile create prints checkmark" "✅" "$out"
+
+run_cordon rc out err profile list
+assert_exit         "cordon profile list exits 0" 0 $rc
+assert_contains     "cordon profile list shows python" "python" "$out"
+
+run_cordon rc out err profile show python
+assert_exit         "cordon profile show python exits 0" 0 $rc
+assert_contains     "cordon profile show python contains allow" "allow" "$out"
+
+run_cordon rc out err profile show nonexistent
+[[ $rc -ne 0 ]] && pass "cordon profile show nonexistent exits non-zero" || fail "cordon profile show nonexistent should fail"
+
+run_cordon rc out err profile create python --net=full --gui
+assert_exit         "cordon profile create overwrites exits 0" 0 $rc
+run_cordon rc out err profile show python
+assert_contains     "overwritten profile has new values" "full" "$out"
+assert_contains     "overwritten profile has new values" "true" "$out"
+
+run_cordon rc out err profile delete python
+assert_exit         "cordon profile delete exits 0" 0 $rc
+assert_contains     "cordon profile delete prints checkmark" "✅" "$out"
+
+run_cordon rc out err profile delete nonexistent
+assert_exit         "cordon profile delete nonexistent exits 0" 0 $rc
+assert_contains     "cordon profile delete nonexistent prints warning" "⚠️" "$out"
+
+run_cordon rc out err profile list
+assert_contains     "cordon profile list empty prints suggestion" "No saved profiles" "$out"
+
+run_cordon rc out err run --dry-run --profile rust -- echo
+assert_exit_any_of  "cordon run --dry-run --profile works (built-in fallback)" $rc 0 1
+
+run_cordon rc out err profile
+[[ $rc -ne 0 ]] && pass "cordon profile (no args) exits non-zero" || fail "cordon profile (no args) should exit non-zero"
+
+run_cordon rc out err proifle list
+assert_contains     "typo proifle suggests profile" "profile" "$err$out"
+
+if [ -n "$ORIG_HOME" ]; then
+    export HOME="$ORIG_HOME"
+else
+    unset HOME
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  SUMMARY
 # ─────────────────────────────────────────────────────────────────────────────
 echo

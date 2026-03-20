@@ -5,4 +5,5 @@
 
 pub mod check;
 pub mod list;
+pub mod profile;
 pub mod status;

@@ -78,6 +78,49 @@ pub struct UserMount {
     pub required: bool,
 }
 
+/// A single named sandbox profile stored in profiles.toml.
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct NamedProfile {
+    pub name: String,
+    pub network: Option<String>,
+    pub gui: Option<bool>,
+    pub optional: Option<Vec<String>>,
+}
+
+/// Top-level structure of profiles.toml.
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct ProfilesConfig {
+    #[serde(rename = "profile", default)]
+    pub profiles: Vec<NamedProfile>,
+}
+
+/// Returns the path to ~/.config/cordon/profiles.toml
+pub fn get_profiles_path() -> Result<PathBuf> {
+    Ok(get_config_dir()?.join("profiles.toml"))
+}
+
+/// Reads and parses profiles.toml from ~/.config/cordon/.
+/// Returns an empty ProfilesConfig if the file doesn't exist yet.
+pub fn load_profiles() -> Result<ProfilesConfig> {
+    let path = get_profiles_path()?;
+    if !path.exists() {
+        return Ok(ProfilesConfig::default());
+    }
+    let content =
+        fs::read_to_string(&path).with_context(|| format!("Failed to read {}", path.display()))?;
+    let config: ProfilesConfig =
+        toml::from_str(&content).with_context(|| format!("Failed to parse {}", path.display()))?;
+    Ok(config)
+}
+
+/// Writes profiles.toml to ~/.config/cordon/.
+pub fn save_profiles(config: &ProfilesConfig) -> Result<()> {
+    let path = get_profiles_path()?;
+    let content = toml::to_string_pretty(config)?;
+    fs::write(&path, content).with_context(|| format!("Failed to write {}", path.display()))?;
+    Ok(())
+}
+
 /// Returns the path to ~/.config/cordon/, creating it if needed.
 pub fn get_config_dir() -> Result<PathBuf> {
     let home = std::env::var("HOME").context("HOME not set")?;
@@ -402,5 +445,27 @@ required = false
             Some(vec!["dbus_session".to_string(), "audio_pipewire".to_string()].as_slice())
         );
         assert_eq!(config.mounts.len(), 1);
+    }
+
+    #[test]
+    fn test_named_profile_roundtrip() {
+        let toml = r#"
+[[profile]]
+name = "python"
+network = "allow"
+optional = ["ld_so_cache", "locale_files"]
+"#;
+        let config: ProfilesConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.profiles.len(), 1);
+        assert_eq!(config.profiles[0].name, "python");
+        assert_eq!(config.profiles[0].network.as_deref(), Some("allow"));
+        assert!(config.profiles[0].gui.is_none());
+    }
+
+    #[test]
+    fn test_profiles_config_empty() {
+        let toml = "";
+        let config: ProfilesConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.profiles.len(), 0);
     }
 }

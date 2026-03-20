@@ -35,12 +35,13 @@ Cordon uses **Linux namespaces** via `bubblewrap` to create an isolated environm
 
 No root. No containers. No system-wide config.
 
-### Three-Layer Config
+### Four-Layer Config
 
 | Layer | File | Description |
 |-------|------|-------------|
 | Core | `core.toml` (in binary) | Blueprint of what paths to look for. Immutable at runtime. |
 | System | `~/.config/cordon/system.toml` | Scanner output — verified paths on **this machine**. |
+| Profile | `~/.config/cordon/profiles.toml` | Global reusable sandbox configuration profiles. |
 | Project | `./cordon.toml` | Optional per-project extra mounts and profile defaults. |
 
 bwrap reads paths only from `system.toml` and `cordon.toml`. Neither file is ever exposed inside the sandbox.
@@ -98,6 +99,9 @@ cordon list
 
 # Show system.toml contents without scanning
 cordon status
+
+# Manage reusable named sandbox profiles
+cordon profile <create|list|delete|show>
 
 # Add a custom path to the per-project cordon.toml
 cordon add /path/to/dir --mode rw

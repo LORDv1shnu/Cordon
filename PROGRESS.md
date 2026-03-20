@@ -159,7 +159,7 @@
 
 ## Pending
 
-### Phase 2.8 — Named Profiles `[PLANNED]`
+### Phase 3 (remaining) — Observability `[PLANNED]`
 
 **`cordon profile` Subcommand**
 
@@ -182,11 +182,21 @@ Reusable named sandbox profiles stored at `~/.config/cordon/profiles.toml`.
 | `python` | `--net=allow`, `ld_so_cache`, `locale_files` |
 | `node` | `--net=allow`, `ld_so_cache`, `home_config` |
 | `rust` | `--net=allow` (cargo fetch), `ld_so_cache` |
-| `gui-app` | `--gui`, `audio_pipewire`, `dbus_session`, `gpu_dri` |
+### Phase 2.8 — Named Profiles ✅
+
+| Feature | Notes |
+|---------|-------|
+| `cordon profile create <name>` | Create a named profile with `--net`, `--gui`, `--optional` |
+| `cordon profile list` | Show all saved profiles in a table |
+| `cordon profile delete <name>` | Remove a named profile |
+| `cordon profile show <name>` | Dump a single profile's TOML representation |
+| `cordon run --profile <name>` | Apply named profile (overridden by CLI flags) |
+| `profiles.toml` layer | Stored at `~/.config/cordon/profiles.toml` |
+| Built-in profiles | `python`, `node`, `rust`, `gui-app` seamlessly resolved |
 
 ---
 
-### Phase 3 (remaining) — Observability `[PLANNED]`
+## Pending
 
 **strace / Access-Denied Logger**
 - Wrap bwrap with `strace -e trace=openat,open,access,stat` to capture denied path accesses.

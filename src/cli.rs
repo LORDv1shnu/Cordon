@@ -57,6 +57,11 @@ pub enum Commands {
         #[arg(long, default_value_t = false)]
         gui: bool,
 
+        /// Load a named profile from ~/.config/cordon/profiles.toml.
+        /// Merged before cordon.toml and CLI flags, so those always take precedence.
+        #[arg(long, value_name = "NAME")]
+        profile: Option<String>,
+
         /// Activate optional modules by name (e.g. --optional audio --optional dbus).
         /// Module must exist in system.toml and be verified.
         #[arg(long, value_name = "MODULE")]
@@ -129,4 +134,33 @@ pub enum Commands {
     /// Also shows the last_scan timestamp and cordon_version from the file header.
     /// Useful for debugging "why isn't my module being mounted?" without running any command.
     Status,
+
+    /// Manage reusable named sandbox profiles stored in ~/.config/cordon/profiles.toml.
+    Profile {
+        #[command(subcommand)]
+        action: ProfileCommands,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ProfileCommands {
+    /// Create or overwrite a named profile.
+    Create {
+        name: String,
+        /// Network permission profile (disable, allow, full).
+        #[arg(long, value_name = "PROFILE")]
+        net: Option<crate::sandbox::network::NetworkMode>,
+        /// Enable GUI app support (X11/Wayland/fonts).
+        #[arg(long)]
+        gui: bool,
+        /// Add an optional module to the profile.
+        #[arg(long, value_name = "MODULE")]
+        optional: Vec<String>,
+    },
+    /// List all saved profiles in a table.
+    List,
+    /// Delete a named profile by name.
+    Delete { name: String },
+    /// Show a single profile's fields.
+    Show { name: String },
 }
