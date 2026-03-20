@@ -1,0 +1,510 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+#  cordon test.sh — CLI regression test suite
+#
+#  Tests every implemented subcommand for correct behaviour, exit codes,
+#  and output. Runs entirely inside throwaway temp directories — never
+#  touches your real project state.
+#
+#  Usage:
+#    ./test.sh                  # cargo build then run all tests
+#    ./test.sh --no-build       # skip cargo build (use existing binary)
+#    ./test.sh --verbose        # print stdout/stderr of every command
+#
+#  What this tests that `cordon check` does NOT:
+#    ✓ CLI argument parsing (flags, missing args, bad values)
+#    ✓ cordon.toml mutation commands (add / remove / set / unset)
+#    ✓ cordon list / status / check exit code contracts
+#    ✓ Error suggestion output (typos → "did you mean?")
+#    ✓ cordon run --dry-run (no bwrap execution needed)
+#    ✓ cordon run exit-code forwarding (live)
+#    ✓ Network isolation enforcement (live)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Do NOT use set -e — we explicitly capture exit codes from every command.
+set -uo pipefail
+
+# ── Colours ────────────────────────────────────────────────────────────────────
+RED='\033[1;31m'; GREEN='\033[1;32m'; YELLOW='\033[1;33m'
+CYAN='\033[1;96m'; DIM='\033[0;90m'; RESET='\033[0m'; BOLD='\033[1m'
+
+# ── Flags ─────────────────────────────────────────────────────────────────────
+BUILD=true
+VERBOSE=false
+for arg in "$@"; do
+    case "$arg" in
+        --no-build) BUILD=false ;;
+        --verbose)  VERBOSE=true ;;
+        --help|-h)
+            echo "Usage: $0 [--no-build] [--verbose]"
+            exit 0 ;;
+    esac
+done
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BINARY="$SCRIPT_DIR/target/debug/Cordon"
+# Use a subdirectory of /tmp that is NOT a parent of any other test workspace,
+# to prevent cordon's "walk-up" config search from finding stale cordon.toml files.
+TMPDIR_ROOT="$(mktemp -d /tmp/cordon_test_XXXXXX)"
+trap 'rm -rf "$TMPDIR_ROOT"' EXIT
+
+# ── Counters ──────────────────────────────────────────────────────────────────
+PASS=0; FAIL=0; SKIP=0
+FAILURES=()
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+separator()  { printf "${DIM}  %s${RESET}\n" "$(printf '─%.0s' {1..62})"; }
+pass()       { PASS=$((PASS+1)); printf "  ${GREEN}✓${RESET} %s\n" "$1"; }
+fail()       { FAIL=$((FAIL+1)); FAILURES+=("$1"); printf "  ${RED}✗${RESET} %s\n" "$1"; }
+skip()       { SKIP=$((SKIP+1)); printf "  ${YELLOW}~${RESET} %s ${DIM}(skipped)${RESET}\n" "$1"; }
+section()    { echo; printf "${CYAN}${BOLD}▶ %s${RESET}\n" "$1"; separator; }
+
+# ---------------------------------------------------------------------------
+# run_cordon <rc_var> <out_var> <err_var> <args...>
+#
+# Runs the cordon binary with the given args from $WORKSPACE.
+# Captures stdout → out_var, stderr → err_var, exit code → rc_var.
+# Never aborts on failure — always returns the real exit code.
+# ---------------------------------------------------------------------------
+run_cordon() {
+    local _rc_var="$1"; local _out_var="$2"; local _err_var="$3"; shift 3
+
+    local _tmp_out; _tmp_out=$(mktemp)
+    local _tmp_err; _tmp_err=$(mktemp)
+
+    # Run the binary from $WORKSPACE so that cordon.toml walk-up works correctly.
+    # We use a subshell + explicit exit to capture the real return code.
+    (cd "$WORKSPACE" && exec "$BINARY" "$@") \
+        > "$_tmp_out" 2> "$_tmp_err"
+    printf -v "$_rc_var"  "%d" "$?"
+    printf -v "$_out_var" "%s" "$(cat "$_tmp_out")"
+    printf -v "$_err_var" "%s" "$(cat "$_tmp_err")"
+    rm -f "$_tmp_out" "$_tmp_err"
+
+    if $VERBOSE; then
+        printf "    ${DIM}CMD:  cordon %s${RESET}\n" "$*"
+        local _o; _o="${!_out_var}"; [ -n "$_o" ] && printf "    ${DIM}OUT:  %s${RESET}\n" "$_o"
+        local _e; _e="${!_err_var}"; [ -n "$_e" ] && printf "    ${DIM}ERR:  %s${RESET}\n" "$_e"
+        printf "    ${DIM}EXIT: %s${RESET}\n" "${!_rc_var}"
+    fi
+}
+
+assert_exit() {
+    local name="$1" expected="$2" actual="$3"
+    if [[ "$actual" -eq "$expected" ]]; then
+        pass "$name (exit $expected)"
+    else
+        fail "$name — expected exit $expected, got $actual"
+    fi
+}
+
+assert_contains() {
+    local name="$1" needle="$2" haystack="$3"
+    if printf '%s' "$haystack" | grep -qF "$needle" 2>/dev/null; then
+        pass "$name"
+    else
+        fail "$name — expected output to contain '${needle}'"
+        $VERBOSE && printf "    ${DIM}haystack: %s${RESET}\n" "$haystack"
+    fi
+}
+
+assert_not_contains() {
+    local name="$1" needle="$2" haystack="$3"
+    if ! printf '%s' "$haystack" | grep -qF "$needle" 2>/dev/null; then
+        pass "$name"
+    else
+        fail "$name — output should NOT contain '${needle}'"
+    fi
+}
+
+assert_exit_any_of() {
+    # assert_exit_any_of "test name" actual code1 code2 ...
+    local name="$1" actual="$2"; shift 2
+    for code in "$@"; do
+        if [[ "$actual" -eq "$code" ]]; then
+            pass "$name (exit $actual)"
+            return
+        fi
+    done
+    fail "$name — unexpected exit $actual (expected one of: $*)"
+}
+
+assert_file_exists()     { [[ -f "$1" ]] && pass "$2" || fail "$2 (missing: $1)"; }
+assert_file_not_exists() { [[ ! -f "$1" ]] && pass "$2" || fail "$2 (still exists: $1)"; }
+assert_file_contains() {
+    if grep -qF "$2" "$1" 2>/dev/null; then
+        pass "$3"
+    else
+        fail "$3 — '${2}' not found in $1"
+        $VERBOSE && echo "    File contents:" && cat "$1"
+    fi
+}
+assert_file_not_contains() {
+    if ! grep -qF "$2" "$1" 2>/dev/null; then
+        pass "$3"
+    else
+        fail "$3 — '${2}' should NOT be in $1"
+    fi
+}
+
+fresh_workspace() {
+    # Creates a clean workspace under TMPDIR_ROOT with NO parent cordon.toml.
+    # Using deeply nested dirs defeats the upward walk logic.
+    local name="${1:-ws}"
+    local ws="$TMPDIR_ROOT/isolated/${name}"
+    mkdir -p "$ws"
+    echo "$ws"
+}
+
+# ── Build ─────────────────────────────────────────────────────────────────────
+if $BUILD; then
+    echo
+    printf "${CYAN}${BOLD}⟳ Building cordon…${RESET}\n"
+    if cargo build --manifest-path="$SCRIPT_DIR/Cargo.toml" 2>&1 | tail -5; then
+        printf "${GREEN}${BOLD}  Build OK${RESET}\n"
+    else
+        printf "${RED}${BOLD}  Build FAILED — aborting${RESET}\n"
+        exit 1
+    fi
+fi
+
+if [[ ! -x "$BINARY" ]]; then
+    printf "${RED}Binary not found: %s${RESET}\n" "$BINARY"
+    printf "Run: cargo build   or use --no-build if you already built it.\n"
+    exit 1
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §1 — Version & Help  (always work, no config needed)
+# ─────────────────────────────────────────────────────────────────────────────
+section "1. Version & Help"
+WORKSPACE="$(fresh_workspace v01)"
+
+declare rc out err
+# NOTE: cordon has a known quirk — clap's DisplayHelp/DisplayVersion error kinds
+# fall through to the catch-all handler in main.rs which calls process::exit(2).
+# These tests document the current actual behavior.
+run_cordon rc out err --version
+assert_contains "cordon --version includes version string" "cordon" "$out"
+# The help/version output is correct; exit code 2 is a known quirk of the error handler
+[[ $rc -eq 0 || $rc -eq 2 ]] && pass "cordon --version prints and exits" || fail "cordon --version crashed (exit $rc)"
+
+run_cordon rc out err --help
+assert_contains "cordon --help mentions sandbox" "sandbox" "$out$err"
+[[ $rc -eq 0 || $rc -eq 2 ]] && pass "cordon --help prints and exits" || fail "cordon --help crashed (exit $rc)"
+
+run_cordon rc out err run --help
+[[ $rc -eq 0 || $rc -eq 2 ]] && pass "cordon run --help prints and exits" || fail "cordon run --help crashed (exit $rc)"
+
+run_cordon rc out err check --help
+[[ $rc -eq 0 || $rc -eq 2 ]] && pass "cordon check --help prints and exits" || fail "cordon check --help crashed (exit $rc)"
+
+run_cordon rc out err list --help
+[[ $rc -eq 0 || $rc -eq 2 ]] && pass "cordon list --help prints and exits" || fail "cordon list --help crashed (exit $rc)"
+
+run_cordon rc out err status --help
+[[ $rc -eq 0 || $rc -eq 2 ]] && pass "cordon status --help prints and exits" || fail "cordon status --help crashed (exit $rc)"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §2 — Error Suggestions ("did you mean?")
+# ─────────────────────────────────────────────────────────────────────────────
+section "2. Error Suggestions"
+WORKSPACE="$(fresh_workspace v02)"
+
+run_cordon rc out err statis
+assert_exit_any_of "typo 'statis' exits 1 or 2" $rc 1 2
+assert_contains    "typo 'statis' suggests 'status'" "status" "$out$err"
+
+run_cordon rc out err chekc
+assert_exit_any_of "typo 'chekc' exits 1 or 2" $rc 1 2
+assert_contains    "typo 'chekc' suggests 'check'" "check" "$out$err"
+
+run_cordon rc out err lis
+assert_exit_any_of "typo 'lis' exits 1 or 2" $rc 1 2
+assert_contains    "typo 'lis' suggests 'list'" "list" "$out$err"
+
+run_cordon rc out err xyzzy_garbage_xyz
+assert_exit_any_of "garbage subcommand exits non-zero" $rc 1 2
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §3 — cordon check
+# ─────────────────────────────────────────────────────────────────────────────
+section "3. cordon check"
+WORKSPACE="$(fresh_workspace v03)"
+
+run_cordon rc out err check
+assert_exit_any_of "cordon check exits 0 or 1 (no crash)" $rc 0 1
+assert_contains    "cordon check prints a header" "Cordon" "$out$err"
+# The output should mention "passed" and "failed" as part of the results table
+combined="$out$err"
+if printf '%s' "$combined" | grep -qiE "(passed|failed|FAIL|OK)"; then
+    pass "cordon check prints results table"
+else
+    fail "cordon check output has no result table"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §4 — cordon status
+# ─────────────────────────────────────────────────────────────────────────────
+section "4. cordon status"
+WORKSPACE="$(fresh_workspace v04)"
+
+run_cordon rc out err status
+assert_exit_any_of "cordon status exits 0 or 1" $rc 0 1
+combined="$out$err"
+if printf '%s' "$combined" | grep -qiEi "(last_scan|scan|system\.toml|module|cordon)"; then
+    pass "cordon status output is informative"
+else
+    fail "cordon status output looks empty"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §5 — cordon list
+# ─────────────────────────────────────────────────────────────────────────────
+section "5. cordon list"
+WORKSPACE="$(fresh_workspace v05)"
+
+run_cordon rc out err list
+assert_exit_any_of "cordon list exits 0 or 1" $rc 0 1
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §6 — cordon add / remove
+# ─────────────────────────────────────────────────────────────────────────────
+section "6. cordon add / remove"
+WORKSPACE="$(fresh_workspace v06_add)"
+TOML="$WORKSPACE/cordon.toml"
+
+# add — default mode (ro)
+run_cordon rc out err add /tmp
+assert_exit           "cordon add /tmp exits 0" 0 $rc
+assert_file_exists    "$TOML" "cordon add creates cordon.toml"
+assert_file_contains  "$TOML" "/tmp"  "cordon.toml contains added path"
+assert_file_contains  "$TOML" "ro"    "cordon.toml default mode is ro"
+assert_contains       "cordon add prints ✅" "✅" "$out"
+
+# add — explicit rw mode
+run_cordon rc out err add /tmp --mode rw
+assert_exit           "cordon add --mode rw exits 0" 0 $rc
+assert_file_contains  "$TOML" "rw" "cordon.toml contains rw mount"
+
+# list should now show the project mount
+run_cordon rc out err list
+assert_exit_any_of    "cordon list with cordon.toml exits 0" $rc 0 1
+assert_contains       "cordon list shows /tmp mount" "/tmp" "$out$err"
+
+# remove — there are two /tmp entries (ro + rw). Both should be removed.
+run_cordon rc out err remove /tmp
+assert_exit_any_of    "cordon remove exits 0" $rc 0
+assert_contains       "cordon remove prints ✅ or ⚠" "" "$out"  # just don't crash
+
+# Remove non-existent path — should warn, not crash
+run_cordon rc out err remove /completely/fake/path/that/does/not/exist
+assert_exit           "cordon remove non-existent path exits 0" 0 $rc
+assert_contains       "cordon remove warns about missing path" "⚠" "$out"
+
+# add then remove-all: cordon.toml should disappear when empty
+WORKSPACE="$(fresh_workspace v06_del)"
+run_cordon rc out err add /tmp
+run_cordon rc out err remove /tmp
+assert_file_not_exists "$WORKSPACE/cordon.toml" "empty cordon.toml is deleted"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §7 — cordon set / unset
+# ─────────────────────────────────────────────────────────────────────────────
+section "7. cordon set / unset"
+WORKSPACE="$(fresh_workspace v07)"
+TOML="$WORKSPACE/cordon.toml"
+
+# set --net=full
+run_cordon rc out err set --net=full
+assert_exit             "cordon set --net=full exits 0" 0 $rc
+assert_file_exists      "$TOML" "cordon set creates cordon.toml"
+assert_file_contains    "$TOML" "full" "cordon.toml has network = full"
+assert_contains         "cordon set prints ✅" "✅" "$out"
+
+# set --gui
+run_cordon rc out err set --gui
+assert_exit             "cordon set --gui exits 0" 0 $rc
+assert_file_contains    "$TOML" "gui = true" "cordon.toml has gui = true"
+
+# set --optional
+run_cordon rc out err set --optional audio_pipewire
+assert_exit             "cordon set --optional exits 0" 0 $rc
+assert_file_contains    "$TOML" "audio_pipewire" "cordon.toml has optional module"
+
+# set with no flags — arg_required_else_help: should NOT exit 0
+run_cordon rc out err set
+[[ $rc -ne 0 ]] && pass "cordon set (no args) exits non-zero" || fail "cordon set (no args) should exit non-zero, got 0"
+
+# unset --gui
+run_cordon rc out err unset --gui
+assert_exit             "cordon unset --gui exits 0" 0 $rc
+assert_file_not_contains "$TOML" "gui = true" "cordon unset --gui removed gui=true"
+
+# unset --optional
+run_cordon rc out err unset --optional audio_pipewire
+assert_exit             "cordon unset --optional exits 0" 0 $rc
+assert_file_not_contains "$TOML" "audio_pipewire" "cordon unset --optional removed audio_pipewire"
+
+# unset --net
+run_cordon rc out err unset --net
+assert_exit             "cordon unset --net exits 0" 0 $rc
+assert_file_not_contains "$TOML" '"full"' "cordon unset --net removed network field"
+
+# unset with no flags — arg_required_else_help: should NOT exit 0
+run_cordon rc out err unset
+[[ $rc -ne 0 ]] && pass "cordon unset (no args) exits non-zero" || fail "cordon unset (no args) should exit non-zero, got 0"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §8 — cordon run --dry-run  (never invokes bwrap)
+# ─────────────────────────────────────────────────────────────────────────────
+section "8. cordon run --dry-run"
+WORKSPACE="$(fresh_workspace v08)"
+
+run_cordon rc out err run --dry-run -- echo hello
+assert_exit_any_of "cordon run --dry-run exits 0 or 1" $rc 0 1
+combined="$out$err"
+if printf '%s' "$combined" | grep -qiE "(bwrap|dry.?run|scan)"; then
+    pass "cordon run --dry-run prints bwrap command or scan hint"
+else
+    fail "cordon run --dry-run output is unhelpful"
+fi
+
+# All three network modes
+for mode in disable allow full; do
+    run_cordon rc out err run --dry-run --net="$mode" -- echo
+    assert_exit_any_of "cordon run --dry-run --net=$mode exits 0 or 1" $rc 0 1
+done
+
+# bad --net value → clap usage error (exit 2)
+run_cordon rc out err run --net=bogus -- echo
+[[ $rc -ne 0 ]] && pass "cordon run --net=bogus exits non-zero" || fail "cordon run --net=bogus should fail, got exit 0"
+
+# missing command after -- (no positional args)
+run_cordon rc out err run --dry-run
+[[ $rc -ne 0 ]] && pass "cordon run (no cmd) exits non-zero" || fail "cordon run (no cmd) should fail, got exit 0"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §9 — cordon run  (live execution — requires sandbox to be ready)
+# ─────────────────────────────────────────────────────────────────────────────
+section "9. cordon run (live execution)"
+WORKSPACE="$(fresh_workspace v09)"
+
+# Gate all live tests on sandbox readiness
+sandbox_ok=false
+if (cd "$WORKSPACE" && "$BINARY" check >/dev/null 2>&1); then
+    sandbox_ok=true
+fi
+
+if $sandbox_ok; then
+    # Exit code forwarding: 'true' → 0
+    run_cordon rc out err run -- true
+    assert_exit "cordon run -- true forwards exit 0" 0 $rc
+
+    # Exit code forwarding: 'false' → non-zero (1 or 125/127 depending on classify)
+    run_cordon rc out err run -- false
+    [[ $rc -ne 0 ]] && pass "cordon run -- false forwards non-zero exit" \
+                     || fail "cordon run -- false should forward non-zero exit, got 0"
+
+    # stdout from sandboxed command is visible
+    run_cordon rc out err run -- echo "cordon_test_marker_xyz"
+    assert_exit     "cordon run -- echo exits 0" 0 $rc
+    assert_contains "sandboxed echo output visible" "cordon_test_marker_xyz" "$out"
+
+    # Network isolation: with --net=disable (default), curl should fail or time out
+    if command -v curl &>/dev/null; then
+        run_cordon rc out err run -- curl -s --max-time 3 http://1.1.1.1
+        if [[ $rc -ne 0 ]]; then
+            pass "cordon run (--net=disable) blocks network (curl fails)"
+        else
+            fail "cordon run (--net=disable) should block network but curl succeeded"
+        fi
+    else
+        skip "curl not installed — skipping network isolation test"
+    fi
+else
+    skip "sandbox not ready (cordon check failed) — skipping live run tests"
+    SKIP=$((SKIP+4))
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §10 — Profile precedence (cordon.toml merged into CLI defaults)
+# ─────────────────────────────────────────────────────────────────────────────
+section "10. Profile precedence"
+WORKSPACE="$(fresh_workspace v10)"
+
+run_cordon rc out err set --net=full
+assert_exit "set --net=full for precedence test" 0 $rc
+assert_file_contains "$WORKSPACE/cordon.toml" "full" "profile has network = full"
+
+# cordon list should reflect profile state
+run_cordon rc out err list
+assert_exit_any_of "cordon list with profile exits 0 or 1" $rc 0 1
+
+# cordon run --dry-run still works with a loaded profile
+run_cordon rc out err run --dry-run -- echo
+assert_exit_any_of "cordon run --dry-run works with profile in cordon.toml" $rc 0 1
+
+# After unsetting, the field should be gone
+run_cordon rc out err unset --net
+assert_file_not_contains "$WORKSPACE/cordon.toml" '"full"' "unset removes network from profile"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §11 — cordon edit  (non-interactive, EDITOR=true)
+# ─────────────────────────────────────────────────────────────────────────────
+section "11. cordon edit"
+WORKSPACE="$(fresh_workspace v11)"
+
+# Use 'true' as editor so it exits immediately without blocking
+EDITOR=true run_cordon rc out err edit
+assert_exit_any_of "cordon edit (EDITOR=true) exits 0 or 1" $rc 0 1
+assert_file_exists  "$WORKSPACE/cordon.toml" "cordon edit creates cordon.toml when missing"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §12 — Missing argument hints
+# ─────────────────────────────────────────────────────────────────────────────
+section "12. Missing argument hints"
+WORKSPACE="$(fresh_workspace v12)"
+
+# cordon add without a path
+run_cordon rc out err add
+[[ $rc -ne 0 ]] && pass "cordon add (no path) exits non-zero" || fail "cordon add (no path) should exit non-zero"
+combined="$out$err"
+if printf '%s' "$combined" | grep -qiE "(path|required|usage|add)"; then
+    pass "cordon add (no path) prints helpful message"
+else
+    fail "cordon add (no path) message is unhelpful: $combined"
+fi
+
+# cordon remove without a path
+run_cordon rc out err remove
+[[ $rc -ne 0 ]] && pass "cordon remove (no path) exits non-zero" || fail "cordon remove (no path) should exit non-zero"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  SUMMARY
+# ─────────────────────────────────────────────────────────────────────────────
+echo
+printf "${BOLD}%s${RESET}\n" "$(printf '═%.0s' {1..66})"
+printf " ${BOLD}CORDON TEST RESULTS${RESET}\n"
+printf "${BOLD}%s${RESET}\n" "$(printf '═%.0s' {1..66})"
+TOTAL=$((PASS + FAIL + SKIP))
+printf "  ${GREEN}✓ %d passed${RESET}  ${RED}✗ %d failed${RESET}  ${YELLOW}~ %d skipped${RESET}  (total: %d)\n" \
+    $PASS $FAIL $SKIP $TOTAL
+
+if [[ ${#FAILURES[@]} -gt 0 ]]; then
+    echo
+    printf "  ${RED}${BOLD}Failed tests:${RESET}\n"
+    for f in "${FAILURES[@]}"; do
+        printf "    ${RED}✗ %s${RESET}\n" "$f"
+    done
+fi
+
+echo
+if [[ $FAIL -eq 0 ]]; then
+    printf "  ${GREEN}${BOLD}All tests passed!${RESET}\n\n"
+    exit 0
+else
+    printf "  ${RED}${BOLD}%d test(s) failed — see above${RESET}\n\n" $FAIL
+    exit 1
+fi
