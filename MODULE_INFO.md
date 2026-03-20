@@ -97,7 +97,7 @@ Parses CLI via clap, then dispatches to the right module. If you add a new subco
 **Argument structs only.** No logic lives here.
 
 - `Cli` is the top-level clap `Parser`.
-- `Commands` is the `Subcommand` enum: `Run { ... }`, `Scan {}`, `Add { ... }`, `Remove { ... }`, `Edit {}`, `Set { ... }`, `Unset { ... }`, `Check`, `List`, `Status`.
+- `Commands` is the `Subcommand` enum: `Run { ... }`, `Scan {}`, `Add { ... }`, `Remove { ... }`, `Edit {}`, `Set { ... }`, `Unset { ... }`, `Check`, `List`, `Status`, `Profile { ... }`.
 - `Run` has: `cmd`, `net`, `domains`, `dry_run`, `gui`, `optional`, `debug`.
 - `#[arg(last = true)]` on `cmd` is what makes `cordon run -- <cmd>` work.
 

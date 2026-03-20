@@ -106,6 +106,12 @@ cordon profile <create|list|delete|show>
 # Add a custom path to the per-project cordon.toml
 cordon add /path/to/dir --mode rw
 
+# Remove a custom path from the per-project cordon.toml
+cordon remove /path/to/dir
+
+# Open the per-project cordon.toml in the system editor
+cordon edit
+
 # Persist default profile flags into cordon.toml (no CLI flags needed next run)
 cordon set --net=allow --gui --optional audio_pipewire
 

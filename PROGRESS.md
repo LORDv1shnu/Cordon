@@ -96,6 +96,20 @@
 
 ---
 
+### Phase 2.8 — Named Profiles ✅
+
+| Feature | Notes |
+|---------|-------|
+| `cordon profile create <name>` | Create a named profile with `--net`, `--gui`, `--optional` |
+| `cordon profile list` | Show all saved profiles in a table |
+| `cordon profile delete <name>` | Remove a named profile |
+| `cordon profile show <name>` | Dump a single profile's TOML representation |
+| `cordon run --profile <name>` | Apply named profile (overridden by CLI flags) |
+| `profiles.toml` layer | Stored at `~/.config/cordon/profiles.toml` |
+| Built-in profiles | `python`, `node`, `rust`, `gui-app` seamlessly resolved |
+
+---
+
 ### Phase 2.9 — Error Taxonomy ✅
 
 | Feature | Notes |
@@ -160,43 +174,6 @@
 ## Pending
 
 ### Phase 3 (remaining) — Observability `[PLANNED]`
-
-**`cordon profile` Subcommand**
-
-Reusable named sandbox profiles stored at `~/.config/cordon/profiles.toml`.
-
-- `cordon profile create <name> [--net <PROFILE>] [--gui] [--optional <mod>]...`
-- `cordon profile list` — show all saved profiles in a table
-- `cordon profile delete <name>` — remove a named profile
-- `cordon profile show <name>` — dump a single profile's fields
-- `cordon run --profile <name> -- <cmd>` — load profile, CLI flags still override
-- Resolution order (lowest → highest priority):
-  ```
-  built-in defaults → named profile → cordon.toml → CLI flags
-  ```
-
-**Built-in starter profiles:**
-
-| Profile | Preset |
-|---------|--------|
-| `python` | `--net=allow`, `ld_so_cache`, `locale_files` |
-| `node` | `--net=allow`, `ld_so_cache`, `home_config` |
-| `rust` | `--net=allow` (cargo fetch), `ld_so_cache` |
-### Phase 2.8 — Named Profiles ✅
-
-| Feature | Notes |
-|---------|-------|
-| `cordon profile create <name>` | Create a named profile with `--net`, `--gui`, `--optional` |
-| `cordon profile list` | Show all saved profiles in a table |
-| `cordon profile delete <name>` | Remove a named profile |
-| `cordon profile show <name>` | Dump a single profile's TOML representation |
-| `cordon run --profile <name>` | Apply named profile (overridden by CLI flags) |
-| `profiles.toml` layer | Stored at `~/.config/cordon/profiles.toml` |
-| Built-in profiles | `python`, `node`, `rust`, `gui-app` seamlessly resolved |
-
----
-
-## Pending
 
 **strace / Access-Denied Logger**
 - Wrap bwrap with `strace -e trace=openat,open,access,stat` to capture denied path accesses.
