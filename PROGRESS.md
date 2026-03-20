@@ -157,6 +157,9 @@
 | `cordon list` | Lists all system + project mounts with verification indicators |
 | `cordon status` | Shows `system.toml` contents without scanning |
 | Smart error suggestions | Levenshtein nearest-match in `src/suggestions.rs` |
+| `cordon run --trace` | Strace wrapper capturing denied openat/access with pretty report |
+| `cordon add --from-trace` | Batch import missing paths from a `last-trace.log` |
+| `cordon log` | Read and filter `last-run.log` (`--last <N>`, `--errors`) |
 
 ---
 
@@ -172,25 +175,6 @@
 ---
 
 ## Pending
-
-### Phase 3 (remaining) — Observability `[PLANNED]`
-
-**strace / Access-Denied Logger**
-- Wrap bwrap with `strace -e trace=openat,open,access,stat` to capture denied path accesses.
-- Parse strace output after the run — show a sorted table of "what the app couldn't see".
-- Activated via `cordon run --trace -- <cmd>`.
-- Write structured denied-paths report to `~/.config/cordon/logs/last-trace.log`.
-- Let users pipe these findings directly into `cordon add` with a `--from-trace` flag:
-  ```bash
-  cordon run --trace -- my-app 2>&1 | cordon add --from-trace
-  ```
-
-**`cordon log` Subcommand**
-- `cordon log` — tail / pretty-print `last-run.log` without knowing its path.
-- `cordon log --last <n>` — show only the last N lines.
-- `cordon log --errors` — filter to ERROR/WARN lines only.
-
----
 
 ### Phase 4 — Polish & Developer Experience `[PLANNED]`
 

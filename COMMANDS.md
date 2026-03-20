@@ -36,6 +36,7 @@ Status: `[IMPLEMENTED — Phase 1]`
 | `--gui` | bool | `false` | Enable GUI app support — mounts X11 socket, Wayland runtime, fontconfig |
 | `--optional <MODULE>` | string (repeatable) | — | Activate an optional module by name (e.g. `audio_pipewire`, `dbus_session`) |
 | `--profile <NAME>` | string | — | Load a named profile from `profiles.toml` (e.g. `python`, `gui-app`) |
+| `--trace` | bool | `false` | Run sandbox wrapped in strace to catch denied accesses and output a report |
 | `--dry-run` | bool | `false` | Print the full bwrap command and exit without executing it |
 | `--debug` | bool | `false` | Enable verbose tracing logs on stderr; always writes to `~/.config/cordon/logs/last-run.log` |
 
@@ -183,12 +184,14 @@ Appends a new mount entry to the nearest `cordon.toml` (creates it if absent). T
 | Flag | Default | Values |
 |------|---------|--------|
 | `--mode` | `ro` | `ro` (read-only), `rw` (read-write) |
+| `--from-trace` | — | Path to a `last-trace.log` to batch import missing paths |
 
 ### Examples
 
 ```bash
 cordon add /home/user/assets --mode ro
 cordon add /tmp/scratch --mode rw
+cordon add --from-trace ~/.config/cordon/logs/last-trace.log
 ```
 
 ---
@@ -332,6 +335,23 @@ built-in defaults → named profile → cordon.toml → CLI flags
 | `node` | allow | — | `ld_so_cache`, `home_config` |
 | `rust` | allow | — | `ld_so_cache` |
 | `gui-app` | — | true | `audio_pipewire`, `dbus_session`, `gpu_dri` |
+
+---
+
+## `cordon log` — Read sandbox logs
+
+```
+cordon log [--last <N>] [--errors]
+```
+
+Status: `[IMPLEMENTED — Phase 3]`
+
+Outputs the `last-run.log` from the `~/.config/cordon/logs` directory.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--last <N>` | — | Show only the last `N` lines of the log. |
+| `--errors` | `false` | Filter the log to show only `ERROR` and `WARN` lines. |
 
 ---
 

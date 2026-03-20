@@ -29,6 +29,7 @@ pub fn run_sandboxed(
     mut gui: bool,
     mut optional: Vec<String>,
     profile: Option<String>,
+    trace: bool,
 ) -> Result<()> {
     // 0a. Resolve named profile (before cordon.toml merge)
     if let Some(ref profile_name) = profile {
@@ -181,8 +182,36 @@ pub fn run_sandboxed(
         println!("{} {}", program, args);
         return Ok(());
     }
+    
+    let mut final_command = if trace {
+        if std::process::Command::new("strace")
+            .arg("--version")
+            .output()
+            .map(|o| !o.status.success())
+            .unwrap_or(true)
+        {
+            error!("strace is not installed or not found in PATH");
+            return Err(CordonError::DependencyMissing(
+                "strace — install with: sudo apt install strace".to_string(),
+            )
+            .into());
+        }
+        
+        let trace_log = crate::config::get_config_dir()?.join("logs").join("last-trace.log");
+        info!("Tracing denied accesses to {}", trace_log.display());
+        crate::sandbox::tracer::wrap_with_strace(bwrap, &trace_log)
+    } else {
+        bwrap
+    };
 
-    let status = bwrap.status()?;
+    let status = final_command.status()?;
+    
+    if trace {
+        let trace_log = crate::config::get_config_dir()?.join("logs").join("last-trace.log");
+        if let Ok(denied) = crate::sandbox::tracer::parse_strace_log(&trace_log) {
+            crate::sandbox::tracer::print_trace_report(&denied, &trace_log);
+        }
+    }
 
     if status.success() {
         Ok(())

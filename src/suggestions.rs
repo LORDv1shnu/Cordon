@@ -18,6 +18,7 @@ pub const KNOWN_COMMANDS: &[&str] = &[
     "list",
     "status",
     "profile",
+    "log",
 ];
 
 /// Per-command usage synopsis printed when a required argument is missing.
@@ -36,6 +37,7 @@ pub fn command_synopsis(cmd: &str) -> Option<&'static str> {
         "list"   => Some("cordon list"),
         "status" => Some("cordon status"),
         "profile" => Some("cordon profile <create|list|delete|show>"),
+        "log"    => Some("cordon log [--last <N>] [--errors]"),
         _        => None,
     }
 }

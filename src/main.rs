@@ -116,6 +116,7 @@ fn main() {
             gui,
             optional,
             profile,
+            trace,
         } => {
             // Initialise logging before doing anything else so that every
             // subsequent tracing macro call is captured.
@@ -124,7 +125,7 @@ fn main() {
                 std::process::exit(exit_codes::INTERNAL_ERROR);
             }
 
-            sandbox::run_sandboxed(cmd, net, domains, dry_run, gui, optional, profile).map_err(Into::into)
+            sandbox::run_sandboxed(cmd, net, domains, dry_run, gui, optional, profile, trace).map_err(Into::into)
         }
 
         Commands::Scan {} => {
@@ -132,7 +133,24 @@ fn main() {
             scanner::full_scan().map_err(Into::into)
         }
 
-        Commands::Add { path, mode } => config::add_user_mount(path, mode).map_err(Into::into),
+        Commands::Add { path, mode, from_trace } => {
+            if let Some(trace_log) = from_trace {
+                if let Ok(paths) = sandbox::tracer::parse_strace_log(&trace_log) {
+                    for p in paths {
+                        if let Err(e) = config::add_user_mount(p, mode.clone()) {
+                            eprintln!("Skipped adding path: {}", e);
+                        }
+                    }
+                } else {
+                    eprintln!("Could not read trace log at {}", trace_log.display());
+                }
+                Ok(())
+            } else if let Some(p) = path {
+                config::add_user_mount(p, mode).map_err(Into::into)
+            } else {
+                Err(anyhow::anyhow!("A path is required unless --from-trace is used"))
+            }
+        }
 
         Commands::Remove { path } => config::remove_user_mount(path).map_err(Into::into),
 
@@ -174,6 +192,8 @@ fn main() {
         Commands::List => commands::list::run_list().map_err(Into::into),
 
         Commands::Status => commands::status::run_status().map_err(Into::into),
+
+        Commands::Log { last, errors } => commands::log::run_log(last, errors).map_err(Into::into),
 
         Commands::Profile { action } => match action {
             cli::ProfileCommands::Create { name, net, gui, optional } => {

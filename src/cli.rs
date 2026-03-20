@@ -62,6 +62,11 @@ pub enum Commands {
         #[arg(long, value_name = "NAME")]
         profile: Option<String>,
 
+        /// Run the sandbox wrapped in strace to catch denied accesses,
+        /// and write a report to ~/.config/cordon/logs/last-trace.log.
+        #[arg(long, default_value_t = false)]
+        trace: bool,
+
         /// Activate optional modules by name (e.g. --optional audio --optional dbus).
         /// Module must exist in system.toml and be verified.
         #[arg(long, value_name = "MODULE")]
@@ -73,11 +78,14 @@ pub enum Commands {
 
     /// Add a custom path to the per-project cordon.toml.
     Add {
-        /// Path to the directory or file.
-        path: String,
+        /// Path to the directory or file. Optional if --from-trace is provided.
+        path: Option<String>,
         /// Access mode for the path (ro = read-only, rw = read-write).
         #[arg(long, default_value = "ro")]
         mode: String,
+        /// Add all paths found in the given trace log.
+        #[arg(long, value_name = "LOG")]
+        from_trace: Option<std::path::PathBuf>,
     },
 
     /// Remove a custom path from the per-project cordon.toml.
@@ -134,6 +142,16 @@ pub enum Commands {
     /// Also shows the last_scan timestamp and cordon_version from the file header.
     /// Useful for debugging "why isn't my module being mounted?" without running any command.
     Status,
+
+    /// Show or tail the access/debug log for the last run.
+    Log {
+        /// Show only the last N lines.
+        #[arg(long, value_name = "N")]
+        last: Option<usize>,
+        /// Filter for lines containing "ERROR" or "WARN".
+        #[arg(long, default_value_t = false)]
+        errors: bool,
+    },
 
     /// Manage reusable named sandbox profiles stored in ~/.config/cordon/profiles.toml.
     Profile {

@@ -24,7 +24,8 @@ Cordon/
 │   │   ├── check.rs        # cordon check
 │   │   ├── list.rs         # cordon list
 │   │   ├── profile.rs      # cordon profile (create, list, delete, show)
-│   │   └── status.rs       # cordon status
+│   │   ├── status.rs       # cordon status
+│   │   └── log.rs          # cordon log (read last-run.log)
 │   ├── scanner/            # System scanner — detects paths, writes system.toml
 │   │   ├── mod.rs
 │   │   ├── env_resolver.rs # XDG_RUNTIME_DIR + D-Bus + audio socket resolution
@@ -37,7 +38,8 @@ Cordon/
 │       ├── executor.rs     # Orchestrates the full cordon run flow
 │       ├── mounts.rs       # Applies system + user mounts to bwrap command
 │       ├── network.rs      # NetworkMode enum
-│       └── proxy.rs        # Native Rust domain-filtering HTTP/HTTPS proxy
+│       ├── proxy.rs        # Native Rust domain-filtering HTTP/HTTPS proxy
+│       └── tracer.rs       # Wrap bwrap with strace to detect denied paths
 ├── COMMANDS.md             # Full command reference & future plans
 ├── MODULE_INFO.md          # ← you are here
 ├── PROGRESS.md             # All completed and planned work
@@ -97,7 +99,7 @@ Parses CLI via clap, then dispatches to the right module. If you add a new subco
 **Argument structs only.** No logic lives here.
 
 - `Cli` is the top-level clap `Parser`.
-- `Commands` is the `Subcommand` enum: `Run { ... }`, `Scan {}`, `Add { ... }`, `Remove { ... }`, `Edit {}`, `Set { ... }`, `Unset { ... }`, `Check`, `List`, `Status`, `Profile { ... }`.
+- `Commands` is the `Subcommand` enum: `Run { ... }`, `Scan {}`, `Add { ... }`, `Remove { ... }`, `Edit {}`, `Set { ... }`, `Unset { ... }`, `Check`, `List`, `Status`, `Profile { ... }`, `Log { ... }`.
 - `Run` has: `cmd`, `net`, `domains`, `dry_run`, `gui`, `optional`, `debug`.
 - `#[arg(last = true)]` on `cmd` is what makes `cordon run -- <cmd>` work.
 

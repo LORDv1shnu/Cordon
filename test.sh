@@ -541,6 +541,47 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
+#  §14 — cordon log
+# ─────────────────────────────────────────────────────────────────────────────
+section "14. cordon log"
+WORKSPACE="$(fresh_workspace v14)"
+
+# log without a run (just to verify it doesn't crash)
+run_cordon rc out err log
+assert_exit         "cordon log exits 0" 0 $rc
+assert_contains     "cordon log shows message if missing" "found" "$out$err"
+
+# Run a quick command, then log
+run_cordon rc out err run -- echo "test_log_123"
+run_cordon rc out err log
+assert_exit         "cordon log (after run) exits 0" 0 $rc
+assert_contains     "cordon log outputs contents" "test_log_123" "$out"
+
+run_cordon rc out err log --last 1
+assert_exit         "cordon log --last N exits 0" 0 $rc
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §15 — cordon run --trace
+# ─────────────────────────────────────────────────────────────────────────────
+section "15. cordon run --trace"
+WORKSPACE="$(fresh_workspace v15)"
+
+if command -v strace >/dev/null 2>&1; then
+    run_cordon rc out err run --trace -- head -n 1 /etc/shadow
+    # head on /etc/shadow usually fails with EACCES or ENOENT depending on the distro
+    # Bwrap normally isolates or hides shadow 
+    assert_contains "strace output prints report" "Strace Denied Access Report" "$out$err"
+    
+    # Check if tracing output contains the trace output file
+    assert_contains "log message mentions --from-trace" "from-trace" "$out$err"
+else
+    # strace not installed: should exit 1 cleanly 
+    run_cordon rc out err run --trace -- echo
+    assert_exit "cordon run --trace fails without strace" 1 $rc
+    assert_contains "cordon run --trace warns about missing strace" "strace" "$err"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  SUMMARY
 # ─────────────────────────────────────────────────────────────────────────────
 echo
