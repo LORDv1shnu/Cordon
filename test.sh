@@ -587,7 +587,7 @@ run_cordon rc out err run --quiet --dry-run -- echo hi
 assert_not_contains "quiet suppresses [CORDON] banner" "[CORDON]" "$err$out"
 
 run_cordon rc out err run --verbose --dry-run -- echo hi
-assert_contains "verbose prints bwrap args" "[bwrap]" "$out$err"
+assert_contains "verbose prints bwrap args" "[wrapper]" "$out$err"
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  §17 — cordon init
