@@ -188,29 +188,15 @@
 
 ---
 
-### Phase 4.5 — Resource Limits `[PLANNED]`
+### Phase 4.5 — Resource Limits ✅
 
-Right now cordon only restricts *filesystem visibility*. These features extend sandboxing to *resource consumption*.
-
-**Memory Limit (`--mem <SIZE>`)**
-- Apply a cgroup v2 memory limit to the sandboxed process.
-- Example: `cordon run --mem=512m -- npm install`
-- Uses `systemd-run --scope` or writes directly to the cgroup hierarchy.
-- On OOM: cordon prints a clear error (not a kernel OOM panic), exits 125.
-
-**CPU Limit (`--cpu <N>`)**
-- Restrict the sandbox to N logical CPUs (or a fraction via `--cpu=0.5`).
-- Uses `cgroup v2 cpu.max` or `cpuset`.
-- Prevents data-exfil via CPU side-channels or runaway compile jobs from eating the machine.
-
-**Time Limit (`--timeout <SECS>`)**
-- Kill the sandboxed process after N seconds.
-- Cordon handles the timer and prints `[CORDON] sandbox timed out after Ns`.
-- Exits with code 124 (matching the `timeout(1)` convention).
-
-**`--pid-limit <N>`**
-- Limit the number of processes the sandbox can spawn via cgroup `pids.max`.
-- Prevents fork bombs inside the sandbox.
+| Feature | Notes |
+|---------|-------|
+| Memory Limit (`--mem`) | Restricted via `cgroup v2 MemoryMax` (systemd scope) |
+| CPU Limit (`--cpu`) | Restricted via `cgroup v2 CPUQuota` (systemd scope) |
+| Time Limit (`--timeout`) | Restricted via `RuntimeMaxSec` (systemd scope) |
+| PID Limit (`--pid-limit`) | Restricted via `TasksMax` (systemd scope) |
+| `systemd-run` wrapper | Orchestrates resource limits without root |
 
 ---
 

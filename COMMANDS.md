@@ -41,6 +41,10 @@ Status: `[IMPLEMENTED — Phase 1]`
 | `--debug` | bool | `false` | Enable verbose tracing logs on stderr; always writes to `~/.config/cordon/logs/last-run.log` |
 | `--quiet` | bool | `false` | Suppress all Cordon banners and status lines; only show sandboxed command output |
 | `--verbose` | bool | `false` | Print every bwrap argument on its own line before executing |
+| `--mem <SIZE>` | string | — | Memory limit (e.g. `512M`, `1G`). Requires systemd-run |
+| `--cpu <N>` | float | — | CPU limit in cores (e.g. `0.5`, `2.0`). Requires systemd-run |
+| `--pid-limit <N>` | int | — | Maximum number of processes/threads. Requires systemd-run |
+| `--timeout <S>` | int | — | Execution time limit in seconds. Requires systemd-run |
 
 ### Network Profiles (`--net`)
 

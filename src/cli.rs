@@ -79,6 +79,22 @@ pub enum Commands {
         /// Module must exist in system.toml and be verified.
         #[arg(long, value_name = "MODULE")]
         optional: Vec<String>,
+
+        /// Memory limit (e.g. 512M, 1G). Requires systemd-run.
+        #[arg(long, value_name = "SIZE")]
+        mem: Option<String>,
+
+        /// CPU limit in number of cores (e.g. 0.5, 2.0). Requires systemd-run.
+        #[arg(long, value_name = "N")]
+        cpu: Option<f32>,
+
+        /// Maximum number of processes/threads. Requires systemd-run.
+        #[arg(long, value_name = "N")]
+        pid_limit: Option<u32>,
+
+        /// Execution time limit in seconds. Requires systemd-run.
+        #[arg(long, value_name = "SECS")]
+        timeout: Option<u64>,
     },
 
     /// Scan the system and generate ~/.config/cordon/system.toml.

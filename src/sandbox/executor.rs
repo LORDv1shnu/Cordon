@@ -33,6 +33,10 @@ pub fn run_sandboxed(
     quiet: bool,
     verbose: bool,
     net_is_explicit: bool,
+    mem: Option<String>,
+    cpu: Option<f32>,
+    pid_limit: Option<u32>,
+    timeout: Option<u64>,
 ) -> Result<()> {
     // 0a. Resolve named profile (before cordon.toml merge)
     if let Some(ref profile_name) = profile {
@@ -175,29 +179,6 @@ pub fn run_sandboxed(
         .arg("--") // end of bwrap args
         .args(&cmd);
 
-    if dry_run {
-        let program = bwrap.get_program().to_string_lossy();
-        let args = bwrap
-            .get_args()
-            .map(|a| a.to_string_lossy().to_string())
-            .collect::<Vec<_>>()
-            .join(" ");
-
-        if !quiet {
-            println!("🧪 Dry run mode: command not executed");
-        }
-        println!("{} {}", program, args);
-        return Ok(());
-    }
-
-    if verbose && !quiet {
-        let program = bwrap.get_program().to_string_lossy();
-        eprintln!("[bwrap] {}", program);
-        for arg in bwrap.get_args() {
-            eprintln!("[bwrap] {}", arg.to_string_lossy());
-        }
-    }
-    
     let mut final_command = if trace {
         if std::process::Command::new("strace")
             .arg("--version")
@@ -220,6 +201,51 @@ pub fn run_sandboxed(
     } else {
         bwrap
     };
+
+    let has_limits = mem.is_some() || cpu.is_some() || pid_limit.is_some() || timeout.is_some();
+    if has_limits {
+        if std::process::Command::new("systemd-run")
+            .arg("--version")
+            .output()
+            .is_err()
+        {
+            error!("systemd-run is required for resource limits but was not found in PATH");
+            return Err(CordonError::DependencyMissing(
+                "systemd-run — required for --mem, --cpu, --pid-limit, --timeout".to_string(),
+            )
+            .into());
+        }
+        final_command = crate::sandbox::limits::wrap_with_resource_limits(
+            final_command,
+            mem,
+            cpu,
+            pid_limit,
+            timeout,
+        );
+    }
+
+    if dry_run {
+        let program = final_command.get_program().to_string_lossy();
+        let args = final_command
+            .get_args()
+            .map(|a| a.to_string_lossy().to_string())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        if !quiet {
+            println!("🧪 Dry run mode: command not executed");
+        }
+        println!("{} {}", program, args);
+        return Ok(());
+    }
+
+    if verbose && !quiet {
+        let program = final_command.get_program().to_string_lossy();
+        eprintln!("[wrapper] {}", program);
+        for arg in final_command.get_args() {
+            eprintln!("[wrapper] {}", arg.to_string_lossy());
+        }
+    }
 
     let status = final_command.status()?;
     

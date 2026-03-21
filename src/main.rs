@@ -129,6 +129,10 @@ fn main() {
             trace,
             quiet,
             verbose,
+            mem,
+            cpu,
+            pid_limit,
+            timeout,
         } => {
             // Initialise logging before doing anything else so that every
             // subsequent tracing macro call is captured.
@@ -138,7 +142,24 @@ fn main() {
             }
 
             let net_val = net.unwrap_or(crate::sandbox::network::NetworkMode::Disable);
-            sandbox::run_sandboxed(cmd, net_val, domains, dry_run, gui, optional, profile, trace, quiet, verbose, net.is_some()).map_err(Into::into)
+            sandbox::run_sandboxed(
+                cmd,
+                net_val,
+                domains,
+                dry_run,
+                gui,
+                optional,
+                profile,
+                trace,
+                quiet,
+                verbose,
+                net.is_some(),
+                mem,
+                cpu,
+                pid_limit,
+                timeout,
+            )
+            .map_err(Into::into)
         }
 
         Commands::Scan { distro } => {

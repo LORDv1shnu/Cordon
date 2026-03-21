@@ -127,6 +127,9 @@ cordon edit
 # Scaffold a cordon.toml in the current directory interactively
 cordon init
 
+# Apply resource limits (requires systemd-run)
+cordon run --mem 512M --cpu 2.0 --timeout 60 -- <command>
+
 # Persist default profile flags into cordon.toml (no CLI flags needed next run)
 cordon set --net=allow --gui --optional audio_pipewire
 
