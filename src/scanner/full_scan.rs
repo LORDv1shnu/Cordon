@@ -35,7 +35,8 @@ fn ask_yes_no(prompt: &str) -> bool {
 ///
 /// Phase 4: Optional (when = "optional") — asked per-module with explanation.
 ///   User sees what each module does before deciding.
-pub fn full_scan() -> Result<()> {
+pub fn full_scan(distro_override: Option<crate::distro::Distro>) -> Result<()> {
+    let distro = distro_override.unwrap_or_else(crate::distro::detect_distro);
     println!();
     println!("╔══════════════════════════════════════════╗");
     println!("║       Cordon — Full System Scan          ║");
@@ -55,10 +56,27 @@ pub fn full_scan() -> Result<()> {
     println!("  Required for any binary to execute. Not skippable.");
     println!();
 
+    if matches!(distro, crate::distro::Distro::NixOS) {
+        println!("  NixOS detected — adjusting module paths and adding /nix/store");
+        if std::path::Path::new("/nix/store").exists() {
+            mounts.push(MountEntry {
+                name: "nix_store".to_string(),
+                src: "/nix/store".to_string(),
+                dest: "/nix/store".to_string(),
+                bind_type: "ro-bind".to_string(),
+                mode: "ro".to_string(),
+                when: "always".to_string(),
+                required: true,
+                verified: true,
+            });
+            println!("  Scanning {:20} ... ✅", "nix_store");
+        }
+    }
+
     for module in core.modules.iter().filter(|m| m.when == "always") {
         print!("  Scanning {:20} ... ", module.name);
         io::stdout().flush().unwrap_or(());
-        if let Some(mount) = scan_module_interactive(module)? {
+        if let Some(mount) = scan_module_interactive(module, &distro)? {
             if mount.verified {
                 println!("✅");
             } else {
@@ -87,7 +105,7 @@ pub fn full_scan() -> Result<()> {
         for module in core.modules.iter().filter(|m| m.when == "network") {
             print!("  Scanning {:20} ... ", module.name);
             io::stdout().flush().unwrap_or(());
-            if let Some(mount) = scan_module_interactive(module)? {
+            if let Some(mount) = scan_module_interactive(module, &distro)? {
                 println!(
                     "{}",
                     if mount.verified {
@@ -115,7 +133,7 @@ pub fn full_scan() -> Result<()> {
         for module in core.modules.iter().filter(|m| m.when == "gui") {
             print!("  Scanning {:20} ... ", module.name);
             io::stdout().flush().unwrap_or(());
-            if let Some(mount) = scan_module_interactive(module)? {
+            if let Some(mount) = scan_module_interactive(module, &distro)? {
                 println!(
                     "{}",
                     if mount.verified {
@@ -154,7 +172,7 @@ pub fn full_scan() -> Result<()> {
             if ask_yes_no("  └  Include this?") {
                 print!("     Scanning ... ");
                 io::stdout().flush().unwrap_or(());
-                if let Some(mount) = scan_module_interactive(module)? {
+                if let Some(mount) = scan_module_interactive(module, &distro)? {
                     println!(
                         "{}",
                         if mount.verified {

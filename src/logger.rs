@@ -17,7 +17,7 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 /// Call once at startup (before any `tracing` macros are used).
 ///
 /// `debug` comes from the `--debug` CLI flag on `cordon run`.
-pub fn init_logging(debug: bool) -> anyhow::Result<()> {
+pub fn init_logging(debug: bool, quiet: bool) -> anyhow::Result<()> {
     // ── 1. File sink (full trace, persisted across runs) ─────────────────────
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     let log_dir = PathBuf::from(&home).join(".config/cordon/logs");
@@ -31,7 +31,13 @@ pub fn init_logging(debug: bool) -> anyhow::Result<()> {
     std::mem::forget(guard);
 
     // ── 2. Stderr sink (filtered, human-readable) ─────────────────────────────
-    let stderr_level = if debug { "debug" } else { "info" };
+    let stderr_level = if quiet {
+        "error"
+    } else if debug {
+        "debug"
+    } else {
+        "info"
+    };
 
     let stderr_layer = fmt::layer()
         .with_writer(std::io::stderr)

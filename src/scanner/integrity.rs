@@ -41,7 +41,7 @@ pub fn integrity_check(network: bool, gui: bool) -> Result<SystemConfig> {
     //                  than operating on a partially-known state.
     if !system_path.exists() {
         println!("📝 system.toml not found — running initial scan...");
-        full_scan()?;
+        full_scan(None)?;
     }
 
     let content = fs::read_to_string(&system_path)
@@ -52,7 +52,7 @@ pub fn integrity_check(network: bool, gui: bool) -> Result<SystemConfig> {
         Err(e) => {
             println!("⚠️  system.toml is malformed — re-running full scan.");
             println!("   Reason: {}", e);
-            full_scan()?;
+            full_scan(None)?;
             let fresh = fs::read_to_string(&system_path)?;
             toml::from_str(&fresh)
                 .context("system.toml is still malformed after re-scan — this is a bug")?
@@ -70,7 +70,7 @@ pub fn integrity_check(network: bool, gui: bool) -> Result<SystemConfig> {
             "🔄 Cordon updated ({} → {}) — re-scanning for new version...",
             config.cordon_version, current_version
         );
-        full_scan()?;
+        full_scan(None)?;
         let fresh = fs::read_to_string(&system_path)?;
         config = toml::from_str(&fresh)?;
     }
@@ -134,7 +134,7 @@ pub fn integrity_check(network: bool, gui: bool) -> Result<SystemConfig> {
     if !broken.is_empty() {
         println!("⚠️  Paths no longer exist on disk: {}", broken.join(", "));
         println!("   System may have changed since last scan — re-scanning...");
-        full_scan()?;
+        full_scan(None)?;
         let fresh = fs::read_to_string(&system_path)?;
         config = toml::from_str(&fresh)?;
     }

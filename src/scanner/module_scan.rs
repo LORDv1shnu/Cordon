@@ -38,7 +38,7 @@ fn ask_for_path(module_name: &str, tried_path: &str) -> Option<String> {
 /// the user is prompted for a corrected path (handles non-standard distro layouts
 /// such as NixOS or Gentoo). Optional modules that cannot be found are recorded
 /// as unverified without prompting.
-pub fn scan_module_interactive(module: &CoreModule) -> Result<Option<MountEntry>> {
+pub fn scan_module_interactive(module: &CoreModule, distro: &crate::distro::Distro) -> Result<Option<MountEntry>> {
     // D-Bus session socket gets special resolution from DBUS_SESSION_BUS_ADDRESS.
     if module.name == "dbus_session" {
         if let Some(socket_path) = resolve_dbus_socket() {
@@ -81,14 +81,29 @@ pub fn scan_module_interactive(module: &CoreModule) -> Result<Option<MountEntry>
 
     let resolved_dir = resolve_env_vars(&module.default_dir);
 
-    let actual_dir = if !Path::new(&resolved_dir).exists() && module.required {
+    let mut actual_dir = resolved_dir.clone();
+    let is_nixos = matches!(distro, crate::distro::Distro::NixOS);
+
+    if is_nixos && !Path::new(&resolved_dir).exists() && module.when == "always" {
+        if module.name == "usr" && Path::new("/run/current-system/sw").exists() {
+            actual_dir = "/run/current-system/sw".to_string();
+        } else if module.name == "bin" && Path::new("/run/current-system/sw/bin").exists() {
+            actual_dir = "/run/current-system/sw/bin".to_string();
+        } else if module.name == "lib" && Path::new("/run/current-system/sw/lib").exists() {
+            actual_dir = "/run/current-system/sw/lib".to_string();
+        } else if module.name == "lib64" && Path::new("/run/current-system/sw/lib").exists() {
+            actual_dir = "/run/current-system/sw/lib".to_string();
+        }
+    }
+
+    let actual_dir = if !Path::new(&actual_dir).exists() && module.required {
         // Required module not found — ask user for the correct path.
-        match ask_for_path(&module.name, &resolved_dir) {
+        match ask_for_path(&module.name, &actual_dir) {
             Some(corrected) => corrected,
-            None => resolved_dir.clone(), // user skipped → record as unverified
+            None => actual_dir.clone(), // user skipped → record as unverified
         }
     } else {
-        resolved_dir.clone()
+        actual_dir
     };
 
     scan_module_at(module, &actual_dir)

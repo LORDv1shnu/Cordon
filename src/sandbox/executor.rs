@@ -30,11 +30,14 @@ pub fn run_sandboxed(
     mut optional: Vec<String>,
     profile: Option<String>,
     trace: bool,
+    quiet: bool,
+    verbose: bool,
+    net_is_explicit: bool,
 ) -> Result<()> {
     // 0a. Resolve named profile (before cordon.toml merge)
     if let Some(ref profile_name) = profile {
         let named = resolve_profile(profile_name)?;
-        if net == NetworkMode::Disable {
+        if !net_is_explicit {
             if let Some(n) = named.network {
                 net = match n.as_str() {
                     "allow" => NetworkMode::Allow,
@@ -57,7 +60,7 @@ pub fn run_sandboxed(
 
     // 0b. Merge user profile defaults if CLI arguments are at default values
     if let Ok(Some(cfg)) = crate::config::find_user_config() {
-        if net == NetworkMode::Disable {
+        if !net_is_explicit {
             if let Some(n) = cfg.network {
                 net = match n.as_str() {
                     "allow" => NetworkMode::Allow,
@@ -92,18 +95,20 @@ pub fn run_sandboxed(
         .into());
     }
 
-    info!("Running inside sandbox...");
+    if !quiet {
+        info!("Running inside sandbox...");
+    }
 
     let project_dir: PathBuf = env::current_dir()?;
     let project_path = project_dir.to_str().unwrap();
     let src_dir = project_dir.join("src");
     let has_src = src_dir.exists() && src_dir.is_dir();
 
-    if has_src && !dry_run {
+    if has_src && !dry_run && !quiet {
         info!("Protecting src/ as read-only");
     }
 
-    if !dry_run {
+    if !dry_run && !quiet {
         info!("Project dir: {}", project_dir.display());
     }
 
@@ -146,7 +151,7 @@ pub fn run_sandboxed(
                 bwrap.arg("--setenv").arg("npm_config_https_proxy").arg(&proxy_url);
                 bwrap.arg("--setenv").arg("PIP_PROXY").arg(&proxy_url);
 
-                if !dry_run {
+                if !dry_run && !quiet {
                     info!(
                         "Proxy listening on :{} ({} domains allowed)",
                         p.port,
@@ -178,9 +183,19 @@ pub fn run_sandboxed(
             .collect::<Vec<_>>()
             .join(" ");
 
-        println!("🧪 Dry run mode: command not executed");
+        if !quiet {
+            println!("🧪 Dry run mode: command not executed");
+        }
         println!("{} {}", program, args);
         return Ok(());
+    }
+
+    if verbose && !quiet {
+        let program = bwrap.get_program().to_string_lossy();
+        eprintln!("[bwrap] {}", program);
+        for arg in bwrap.get_args() {
+            eprintln!("[bwrap] {}", arg.to_string_lossy());
+        }
     }
     
     let mut final_command = if trace {
@@ -198,7 +213,9 @@ pub fn run_sandboxed(
         }
         
         let trace_log = crate::config::get_config_dir()?.join("logs").join("last-trace.log");
-        info!("Tracing denied accesses to {}", trace_log.display());
+        if !quiet {
+            info!("Tracing denied accesses to {}", trace_log.display());
+        }
         crate::sandbox::tracer::wrap_with_strace(bwrap, &trace_log)
     } else {
         bwrap

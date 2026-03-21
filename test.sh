@@ -182,29 +182,25 @@ section "1. Version & Help"
 WORKSPACE="$(fresh_workspace v01)"
 
 declare rc out err
-# NOTE: cordon has a known quirk — clap's DisplayHelp/DisplayVersion error kinds
-# fall through to the catch-all handler in main.rs which calls process::exit(2).
-# These tests document the current actual behavior.
 run_cordon rc out err --version
 assert_contains "cordon --version includes version string" "cordon" "$out"
-# The help/version output is correct; exit code 2 is a known quirk of the error handler
-[[ $rc -eq 0 || $rc -eq 2 ]] && pass "cordon --version prints and exits" || fail "cordon --version crashed (exit $rc)"
+assert_exit "cordon --version exits 0" 0 $rc
 
 run_cordon rc out err --help
 assert_contains "cordon --help mentions sandbox" "sandbox" "$out$err"
-[[ $rc -eq 0 || $rc -eq 2 ]] && pass "cordon --help prints and exits" || fail "cordon --help crashed (exit $rc)"
+assert_exit "cordon --help exits 0" 0 $rc
 
 run_cordon rc out err run --help
-[[ $rc -eq 0 || $rc -eq 2 ]] && pass "cordon run --help prints and exits" || fail "cordon run --help crashed (exit $rc)"
+assert_exit "cordon run --help exits 0" 0 $rc
 
 run_cordon rc out err check --help
-[[ $rc -eq 0 || $rc -eq 2 ]] && pass "cordon check --help prints and exits" || fail "cordon check --help crashed (exit $rc)"
+assert_exit "cordon check --help exits 0" 0 $rc
 
 run_cordon rc out err list --help
-[[ $rc -eq 0 || $rc -eq 2 ]] && pass "cordon list --help prints and exits" || fail "cordon list --help crashed (exit $rc)"
+assert_exit "cordon list --help exits 0" 0 $rc
 
 run_cordon rc out err status --help
-[[ $rc -eq 0 || $rc -eq 2 ]] && pass "cordon status --help prints and exits" || fail "cordon status --help crashed (exit $rc)"
+assert_exit "cordon status --help exits 0" 0 $rc
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  §2 — Error Suggestions ("did you mean?")
@@ -580,6 +576,66 @@ else
     assert_exit "cordon run --trace fails without strace" 1 $rc
     assert_contains "cordon run --trace warns about missing strace" "strace" "$err"
 fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §16 — cordon run --quiet / --verbose
+# ─────────────────────────────────────────────────────────────────────────────
+section "16. cordon run --quiet / --verbose"
+WORKSPACE="$(fresh_workspace v16)"
+
+run_cordon rc out err run --quiet --dry-run -- echo hi
+assert_not_contains "quiet suppresses [CORDON] banner" "[CORDON]" "$err$out"
+
+run_cordon rc out err run --verbose --dry-run -- echo hi
+assert_contains "verbose prints bwrap args" "[bwrap]" "$out$err"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §17 — cordon init
+# ─────────────────────────────────────────────────────────────────────────────
+section "17. cordon init"
+WORKSPACE="$(fresh_workspace v17)"
+
+# Auto-detect Cargo.toml → rust profile
+echo '{}' > "$WORKSPACE/Cargo.toml"
+run_cordon rc out err init --yes
+assert_exit "cordon init exits 0" 0 $rc
+assert_file_exists "$WORKSPACE/cordon.toml" "cordon init creates cordon.toml"
+assert_file_contains "$WORKSPACE/cordon.toml" "allow" "rust profile sets network=allow"
+assert_file_contains "$WORKSPACE/cordon.toml" "ld_so_cache" "rust profile sets optional=ld_so_cache"
+
+# --force overwrites existing
+run_cordon rc out err init --yes --force
+assert_exit "cordon init --force exits 0" 0 $rc
+
+# Already exists without --force → non-zero
+WORKSPACE="$(fresh_workspace v17b)"
+echo "" > "$WORKSPACE/cordon.toml"
+run_cordon rc out err init --yes
+[[ $rc -ne 0 ]] && pass "init without --force won't overwrite" || fail "init should refuse without --force"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §18 — NixOS Support (--distro nixos)
+# ─────────────────────────────────────────────────────────────────────────────
+section "18. cordon scan --distro nixos"
+WORKSPACE="$(fresh_workspace v18)"
+
+run_cordon rc out err scan --distro nixos <<< "n
+n
+n
+"
+assert_contains "nixos scan prints banner" "NixOS detected" "$out$err"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §19 — cordon doctor
+# ─────────────────────────────────────────────────────────────────────────────
+section "19. cordon doctor"
+WORKSPACE="$(fresh_workspace v19)"
+
+run_cordon rc out err doctor
+assert_exit_any_of "cordon doctor exits 0 or 1" $rc 0 1
+assert_contains "doctor prints bwrap check" "Bubblewrap" "$out$err"
+assert_contains "doctor prints kernel info" "Kernel" "$out$err"
+assert_contains "doctor prints config info" "Config" "$out$err"
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  SUMMARY

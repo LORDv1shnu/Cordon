@@ -36,8 +36,8 @@ pub enum Commands {
         ///   disable — no network access at all (default)
         ///   allow   — only domains in proxy.toml are reachable
         ///   full    — unrestricted internet access
-        #[arg(long, value_name = "PROFILE", default_value = "disable")]
-        net: crate::sandbox::network::NetworkMode,
+        #[arg(long, value_name = "PROFILE")]
+        net: Option<crate::sandbox::network::NetworkMode>,
 
         /// Allow these domains through the network proxy (if active).
         /// Multiple domains can be specified: '--domain google.com --domain github.com' or comma-separated.
@@ -67,6 +67,14 @@ pub enum Commands {
         #[arg(long, default_value_t = false)]
         trace: bool,
 
+        /// Suppress all Cordon banners and status lines; only show sandboxed command output.
+        #[arg(long, default_value_t = false)]
+        quiet: bool,
+
+        /// Print every bwrap argument on its own line before executing.
+        #[arg(long, default_value_t = false)]
+        verbose: bool,
+
         /// Activate optional modules by name (e.g. --optional audio --optional dbus).
         /// Module must exist in system.toml and be verified.
         #[arg(long, value_name = "MODULE")]
@@ -74,7 +82,24 @@ pub enum Commands {
     },
 
     /// Scan the system and generate ~/.config/cordon/system.toml.
-    Scan {},
+    Scan {
+        /// Override distro detection (e.g. --distro nixos).
+        #[arg(long, value_name = "NAME")]
+        distro: Option<String>,
+    },
+
+    /// Scaffold a cordon.toml in the current directory.
+    /// Auto-detects project type (Cargo.toml → rust, package.json → node, pyproject.toml → python).
+    /// Interactive by default; use --yes to accept all defaults.
+    Init {
+        /// Skip all prompts and apply detected defaults.
+        #[arg(long, short = 'y', default_value_t = false)]
+        yes: bool,
+
+        /// Overwrite an existing cordon.toml.
+        #[arg(long, default_value_t = false)]
+        force: bool,
+    },
 
     /// Add a custom path to the per-project cordon.toml.
     Add {
@@ -148,10 +173,15 @@ pub enum Commands {
         /// Show only the last N lines.
         #[arg(long, value_name = "N")]
         last: Option<usize>,
+
         /// Filter for lines containing "ERROR" or "WARN".
         #[arg(long, default_value_t = false)]
         errors: bool,
     },
+
+    /// Deep diagnostic report: kernel, bwrap version, namespaces, AppArmor, environment quirks.
+    /// Suggests exact fix commands for each detected problem.
+    Doctor,
 
     /// Manage reusable named sandbox profiles stored in ~/.config/cordon/profiles.toml.
     Profile {

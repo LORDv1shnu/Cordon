@@ -39,6 +39,8 @@ Status: `[IMPLEMENTED — Phase 1]`
 | `--trace` | bool | `false` | Run sandbox wrapped in strace to catch denied accesses and output a report |
 | `--dry-run` | bool | `false` | Print the full bwrap command and exit without executing it |
 | `--debug` | bool | `false` | Enable verbose tracing logs on stderr; always writes to `~/.config/cordon/logs/last-run.log` |
+| `--quiet` | bool | `false` | Suppress all Cordon banners and status lines; only show sandboxed command output |
+| `--verbose` | bool | `false` | Print every bwrap argument on its own line before executing |
 
 ### Network Profiles (`--net`)
 
@@ -281,7 +283,7 @@ cordon unset --gui --optional audio_pipewire
 
 | Code | Meaning |
 |------|---------|
-| `0` | Success — sandboxed command exited cleanly |
+| `0` | Success — sandboxed command exited cleanly, or `--help`/`--version` requested |
 | `1` | Cordon internal error (scan failure, config error, etc.) |
 | `2` | Cordon usage error (bad CLI args) |
 | `125` | Sandbox setup failed (bwrap not found, namespace error) |
@@ -355,26 +357,31 @@ Outputs the `last-run.log` from the `~/.config/cordon/logs` directory.
 
 ---
 
+## `cordon init` — Scaffold a project config
+
+```
+cordon init [--yes] [--force]
+```
+
+Status: `[IMPLEMENTED — Phase 4]`
+
+Scaffolds a `cordon.toml` in the current directory interactively. Auto-detects project types (Cargo.toml, package.json, pyproject.toml) and applies built-in profiles.
+
+---
+
+## `cordon doctor` — Deep diagnostic report
+
+```
+cordon doctor
+```
+
+Status: `[IMPLEMENTED — Phase 4]`
+
+Runs a deep diagnostic check of the sandbox environment: kernel version, bwrap availability, namespace capabilities, AppArmor restrictions, and environment quirks (Docker, WSL2, Flatpak). Suggests exact fix commands for any detected issues.
+
+---
+
 # Planned Future Commands
-
----
-
-## `cordon run --quiet` / `--verbose`
-
-Status: `[PLANNED — Phase 4]`
-
-| Flag | Behaviour |
-|------|-----------|
-| `--quiet` | Suppress all Cordon output; only show sandboxed command output |
-| `--verbose` | Print every bwrap argument on its own line; show each mount as it is applied |
-
----
-
-## strace Integration
-
-Status: `[PLANNED — Phase 3]`
-
-Wraps bwrap with `strace` to capture blocked syscalls and paths, then parses and displays what the sandboxed app tried to access but could not.
 
 ---
 
@@ -389,15 +396,13 @@ Status: `[PLANNED — Phase 5]`
 
 ---
 
-## Phase 6 — Profiles & Distribution
+## Phase 6 — Shell & Editor Integration
 
 Status: `[PLANNED — Phase 6]`
 
-| Feature | Notes |
-|---------|-------|
-| Built-in profiles | `nodejs`, `python`, `rust` — pre-configured optional module sets |
-| GitHub Actions CI | Smoke tests on `x86_64-unknown-linux-gnu` |
-| Prebuilt binaries | Binary releases via GitHub Releases |
+- Shell completions (bash, zsh, fish)
+- `cordon wrap <cmd>` script generation
+- Man page generation
 
 ---
 

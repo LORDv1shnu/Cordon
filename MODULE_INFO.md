@@ -20,12 +20,15 @@ Cordon/
 │   ├── errors.rs           # CordonError typed enum (thiserror)
 │   ├── logger.rs           # Dual-sink tracing logger (stderr + log file)
 │   ├── suggestions.rs      # Smart "did you mean?" suggestions & synopses
+│   ├── distro.rs           # Distro detection (NixOS, Standard)
 │   ├── commands/           # Standalone subcommand implementations
 │   │   ├── check.rs        # cordon check
 │   │   ├── list.rs         # cordon list
 │   │   ├── profile.rs      # cordon profile (create, list, delete, show)
 │   │   ├── status.rs       # cordon status
-│   │   └── log.rs          # cordon log (read last-run.log)
+│   │   ├── log.rs          # cordon log (read last-run.log)
+│   │   ├── init.rs         # cordon init
+│   │   └── doctor.rs       # cordon doctor
 │   ├── scanner/            # System scanner — detects paths, writes system.toml
 │   │   ├── mod.rs
 │   │   ├── env_resolver.rs # XDG_RUNTIME_DIR + D-Bus + audio socket resolution
@@ -99,8 +102,8 @@ Parses CLI via clap, then dispatches to the right module. If you add a new subco
 **Argument structs only.** No logic lives here.
 
 - `Cli` is the top-level clap `Parser`.
-- `Commands` is the `Subcommand` enum: `Run { ... }`, `Scan {}`, `Add { ... }`, `Remove { ... }`, `Edit {}`, `Set { ... }`, `Unset { ... }`, `Check`, `List`, `Status`, `Profile { ... }`, `Log { ... }`.
-- `Run` has: `cmd`, `net`, `domains`, `dry_run`, `gui`, `optional`, `debug`.
+- `Commands` is the `Subcommand` enum: `Run { ... }`, `Scan { ... }`, `Add { ... }`, `Remove { ... }`, `Edit {}`, `Set { ... }`, `Unset { ... }`, `Check`, `List`, `Status`, `Profile { ... }`, `Log { ... }`, `Init { ... }`, `Doctor`.
+- `Run` has: `cmd`, `net`, `domains`, `dry_run`, `gui`, `optional`, `debug`, `quiet`, `verbose`.
 - `#[arg(last = true)]` on `cmd` is what makes `cordon run -- <cmd>` work.
 
 ---

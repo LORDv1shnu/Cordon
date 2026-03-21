@@ -176,32 +176,15 @@
 
 ## Pending
 
-### Phase 4 — Polish & Developer Experience `[PLANNED]`
+### Phase 4 — Polish & Developer Experience ✅
 
-**`--quiet` / `--verbose` Flags**
-- `--quiet`: suppress all Cordon banners and status output; only show sandboxed command output.
-- `--verbose`: print every bwrap argument on its own line; show each mount as it's applied.
-
-**`cordon init` Subcommand**
-- Scaffolds a `cordon.toml` in the current directory interactively.
-- Asks: project type? network needed? GUI? which optional modules?
-- Outputs a ready-to-use `cordon.toml` — no manual editing needed.
-- For known project types (Cargo.toml, package.json, pyproject.toml), auto-detects and applies the right built-in profile.
-
-**Better `--help` / `--version` Exit Codes**
-- Fix known bug: `--version` and `--help` currently exit with code 2 due to the clap error handler catch-all.
-- Add `ErrorKind::DisplayHelp | ErrorKind::DisplayVersion` arm to `main.rs` that exits 0.
-
-**NixOS / Non-FHS Distro Support**
-- Auto-detect NixOS via `/etc/os-release`.
-- When detected, adjust `default_dir` values in the scanner (e.g., `/nix/store/…/bin` instead of `/usr/bin`).
-- Add a `--distro <name>` override flag for exotic setups.
-
-**`cordon doctor` Subcommand**
-- Deeper diagnostic than `cordon check`: goes beyond green/red table.
-- Reports: kernel version, bwrap version, AppArmor status, available namespaces.
-- Detects common misconfigurations: Docker-in-Docker limits, WSL2 quirks, Flatpak environment.
-- Suggests the exact command to fix each issue.
+| Feature | Notes |
+|---------|-------|
+| `--quiet` / `--verbose` flags | Suppress output / show full bwrap args |
+| `cordon init` | Auto-detects project, guides scaffold of `cordon.toml` |
+| Exit code 0 for `--help`/`--version` | Fixed clap bug |
+| NixOS / Non-FHS support | Scans `/run/current-system/sw` and mounts `/nix/store` |
+| `cordon doctor` | Deep check with fix suggestions for each failure |
 
 ---
 

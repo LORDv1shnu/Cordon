@@ -97,6 +97,9 @@ cordon scan
 # Health-check: verify bwrap, namespaces, AppArmor, and module readiness
 cordon check
 
+# Deep diagnostic report with suggested fixes
+cordon doctor
+
 # Show all mounts that would be active in the next sandbox run
 cordon list
 
@@ -120,6 +123,9 @@ cordon remove /path/to/dir
 
 # Open the per-project cordon.toml in the system editor
 cordon edit
+
+# Scaffold a cordon.toml in the current directory interactively
+cordon init
 
 # Persist default profile flags into cordon.toml (no CLI flags needed next run)
 cordon set --net=allow --gui --optional audio_pipewire

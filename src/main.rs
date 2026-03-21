@@ -23,6 +23,8 @@ pub mod exit_codes {
 // CLI definitions: argument structs, subcommands, flags
 mod cli;
 
+pub mod distro;
+
 // Sandbox runner: builds and spawns the bwrap process
 mod sandbox;
 
@@ -97,6 +99,12 @@ fn main() {
                     std::process::exit(exit_codes::USAGE_ERROR);
                 }
 
+                // Help and Version: exit 0 ────────────────────────────────────
+                ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => {
+                    e.print().expect("failed to print help/version");
+                    std::process::exit(exit_codes::SUCCESS);
+                }
+
                 // All other clap errors: clap's default rendering ─────────────
                 _ => {
                     e.print().expect("failed to print clap error");
@@ -105,6 +113,8 @@ fn main() {
             }
         }
     };
+
+    let is_quiet = matches!(&cli.command, Commands::Run { quiet: true, .. });
 
     let result: anyhow::Result<()> = match cli.command {
         Commands::Run {
@@ -117,21 +127,31 @@ fn main() {
             optional,
             profile,
             trace,
+            quiet,
+            verbose,
         } => {
             // Initialise logging before doing anything else so that every
             // subsequent tracing macro call is captured.
-            if let Err(e) = logger::init_logging(debug) {
+            if let Err(e) = logger::init_logging(debug, quiet) {
                 eprintln!("critical: failed to initialise logger: {e}");
                 std::process::exit(exit_codes::INTERNAL_ERROR);
             }
 
-            sandbox::run_sandboxed(cmd, net, domains, dry_run, gui, optional, profile, trace).map_err(Into::into)
+            let net_val = net.unwrap_or(crate::sandbox::network::NetworkMode::Disable);
+            sandbox::run_sandboxed(cmd, net_val, domains, dry_run, gui, optional, profile, trace, quiet, verbose, net.is_some()).map_err(Into::into)
         }
 
-        Commands::Scan {} => {
+        Commands::Scan { distro } => {
             // scanner::full_scan() prints its own header — no need to print here
-            scanner::full_scan().map_err(Into::into)
+            let distro_override = match distro.as_deref() {
+                Some("nixos") => Some(crate::distro::Distro::NixOS),
+                Some(_) => Some(crate::distro::Distro::Standard),
+                None => None,
+            };
+            scanner::full_scan(distro_override).map_err(Into::into)
         }
+
+        Commands::Init { yes, force } => commands::init::run_init(yes, force).map_err(Into::into),
 
         Commands::Add { path, mode, from_trace } => {
             if let Some(trace_log) = from_trace {
@@ -195,6 +215,8 @@ fn main() {
 
         Commands::Log { last, errors } => commands::log::run_log(last, errors).map_err(Into::into),
 
+        Commands::Doctor => commands::doctor::run_doctor().map_err(Into::into),
+
         Commands::Profile { action } => match action {
             cli::ProfileCommands::Create { name, net, gui, optional } => {
                 commands::profile::run_create(name, net, gui, optional)
@@ -228,7 +250,7 @@ fn main() {
         // Fall back to plain error rendering for non-CordonError anyhow errors.
         eprintln!("error: {e:#}");
         std::process::exit(exit_codes::INTERNAL_ERROR);
-    } else {
+    } else if !is_quiet {
         eprintln!("\x1b[90m[CORDON] sandbox exited cleanly — cage destroyed\x1b[0m");
     }
 }
