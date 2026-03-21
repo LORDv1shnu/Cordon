@@ -126,11 +126,10 @@ pub fn print_missing_arg_error(missing_arg: &str, subcommand: Option<&str>) {
         "\n\x1b[1;31merror:\x1b[0m missing required argument: \x1b[1m{missing_arg}\x1b[0m"
     );
 
-    if let Some(sub) = subcommand {
-        if let Some(syn) = command_synopsis(sub) {
+    if let Some(sub) = subcommand
+        && let Some(syn) = command_synopsis(sub) {
             eprintln!("\n  \x1b[90mUsage:\x1b[0m  {syn}");
         }
-    }
 
     eprintln!(
         "\n  Run \x1b[1mcordon {} --help\x1b[0m for full details.\n",

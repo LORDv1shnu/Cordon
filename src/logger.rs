@@ -5,11 +5,11 @@
 //! Two sinks are configured on every run:
 //!
 //!   1. **File**   — `~/.config/cordon/logs/last-run.log`
-//!                   Always at TRACE level (full detail, never shown on screen).
+//!      Always at TRACE level (full detail, never shown on screen).
 //!
-//!   2. **Stderr** — Filtered by the `--debug` flag:
-//!                   • normal run  → INFO  (clean, minimal output)
-//!                   • --debug run → DEBUG (verbose trace for troubleshooting)
+//!    - Stderr:
+//!      • normal run  → INFO  (clean, minimal output)
+//!      • --debug run → DEBUG (verbose trace for troubleshooting)
 
 use std::path::PathBuf;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};

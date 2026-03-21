@@ -46,7 +46,7 @@ pub fn run_list() -> Result<()> {
         return Ok(());
     }
 
-    println!("{:<16}  {:<10}  {:<6}  {}", "NAME", "NET", "GUI", "OPTIONAL");
+    println!("{:<16}  {:<10}  {:<6}  OPTIONAL", "NAME", "NET", "GUI");
     println!("{}", "─".repeat(60));
 
     for p in &config.profiles {

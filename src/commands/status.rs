@@ -48,8 +48,8 @@ pub fn run_status() -> Result<()> {
 
     // ── Column headers ────────────────────────────────────────────────────────
     println!(
-        "\n  {:<3} {:<22} {:<8} {:<10} {}",
-        "", "name", "mode", "when", "source path"
+        "\n  {:<3} {:<22} {:<8} {:<10} source path",
+        "", "name", "mode", "when"
     );
     println!("  {}", "·".repeat(70));
 

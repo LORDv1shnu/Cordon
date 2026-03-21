@@ -40,8 +40,8 @@ pub fn run_list() -> Result<()> {
         system.last_scan
     );
     println!(
-        " {:<22} {:<8} {:<10} {}",
-        "name", "mode", "when", "source path"
+        " {:<22} {:<8} {:<10} source path",
+        "name", "mode", "when"
     );
     println!(" {}", "·".repeat(66));
 
@@ -112,8 +112,8 @@ pub fn run_list() -> Result<()> {
                 "\n \x1b[1;97mProject mounts\x1b[0m  \x1b[90m(from cordon.toml)\x1b[0m"
             );
             println!(
-                " {:<30} {:<8} {:<10} {}",
-                "source path", "mode", "when", "required"
+                " {:<30} {:<8} {:<10} required",
+                "source path", "mode", "when"
             );
             println!(" {}", "·".repeat(66));
 

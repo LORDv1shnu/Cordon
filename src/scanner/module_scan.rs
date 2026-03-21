@@ -89,9 +89,7 @@ pub fn scan_module_interactive(module: &CoreModule, distro: &crate::distro::Dist
             actual_dir = "/run/current-system/sw".to_string();
         } else if module.name == "bin" && Path::new("/run/current-system/sw/bin").exists() {
             actual_dir = "/run/current-system/sw/bin".to_string();
-        } else if module.name == "lib" && Path::new("/run/current-system/sw/lib").exists() {
-            actual_dir = "/run/current-system/sw/lib".to_string();
-        } else if module.name == "lib64" && Path::new("/run/current-system/sw/lib").exists() {
+        } else if (module.name == "lib" || module.name == "lib64") && Path::new("/run/current-system/sw/lib").exists() {
             actual_dir = "/run/current-system/sw/lib".to_string();
         }
     }
@@ -132,11 +130,10 @@ pub fn scan_module_at(module: &CoreModule, dir: &str) -> Result<Option<MountEntr
         module.default_dir.clone()
     };
 
-    if dest.contains("$HOME") {
-        if let Ok(val) = std::env::var("HOME") {
+    if dest.contains("$HOME")
+        && let Ok(val) = std::env::var("HOME") {
             dest = dest.replace("$HOME", &val);
         }
-    }
 
     // Path does not exist on this system — record as unverified so that
     // integrity_check can report it cleanly rather than crashing at run time.

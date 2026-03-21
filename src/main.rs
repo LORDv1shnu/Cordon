@@ -142,9 +142,9 @@ fn main() {
             }
 
             let net_val = net.unwrap_or(crate::sandbox::network::NetworkMode::Disable);
-            sandbox::run_sandboxed(
+            sandbox::run_sandboxed(sandbox::executor::SandboxOptions {
                 cmd,
-                net_val,
+                net: net_val,
                 domains,
                 dry_run,
                 gui,
@@ -153,13 +153,12 @@ fn main() {
                 trace,
                 quiet,
                 verbose,
-                net.is_some(),
+                net_is_explicit: net.is_some(),
                 mem,
                 cpu,
                 pid_limit,
                 timeout,
-            )
-            .map_err(Into::into)
+            })
         }
 
         Commands::Scan { distro } => {
@@ -169,10 +168,9 @@ fn main() {
                 Some(_) => Some(crate::distro::Distro::Standard),
                 None => None,
             };
-            scanner::full_scan(distro_override).map_err(Into::into)
-        }
+            scanner::full_scan(distro_override)}
 
-        Commands::Init { yes, force } => commands::init::run_init(yes, force).map_err(Into::into),
+        Commands::Init { yes, force } => commands::init::run_init(yes, force),
 
         Commands::Add { path, mode, from_trace } => {
             if let Some(trace_log) = from_trace {
@@ -187,15 +185,14 @@ fn main() {
                 }
                 Ok(())
             } else if let Some(p) = path {
-                config::add_user_mount(p, mode).map_err(Into::into)
-            } else {
+                config::add_user_mount(p, mode)} else {
                 Err(anyhow::anyhow!("A path is required unless --from-trace is used"))
             }
         }
 
-        Commands::Remove { path } => config::remove_user_mount(path).map_err(Into::into),
+        Commands::Remove { path } => config::remove_user_mount(path),
 
-        Commands::Edit {} => config::edit_user_config().map_err(Into::into),
+        Commands::Edit {} => config::edit_user_config(),
 
         Commands::Set { net, gui, optional } => (|| -> anyhow::Result<()> {
             if let Some(n) = net {
@@ -228,15 +225,15 @@ fn main() {
             Ok(())
         })(),
 
-        Commands::Check => commands::check::run_check().map_err(Into::into),
+        Commands::Check => commands::check::run_check(),
 
-        Commands::List => commands::list::run_list().map_err(Into::into),
+        Commands::List => commands::list::run_list(),
 
-        Commands::Status => commands::status::run_status().map_err(Into::into),
+        Commands::Status => commands::status::run_status(),
 
-        Commands::Log { last, errors } => commands::log::run_log(last, errors).map_err(Into::into),
+        Commands::Log { last, errors } => commands::log::run_log(last, errors),
 
-        Commands::Doctor => commands::doctor::run_doctor().map_err(Into::into),
+        Commands::Doctor => commands::doctor::run_doctor(),
 
         Commands::Profile { action } => match action {
             cli::ProfileCommands::Create { name, net, gui, optional } => {
@@ -245,8 +242,7 @@ fn main() {
             cli::ProfileCommands::List => commands::profile::run_list(),
             cli::ProfileCommands::Delete { name } => commands::profile::run_delete(name),
             cli::ProfileCommands::Show { name } => commands::profile::run_show(name),
-        }
-        .map_err(Into::into),
+        },
     };
 
     if let Err(e) = result {

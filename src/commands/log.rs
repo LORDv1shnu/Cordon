@@ -16,7 +16,7 @@ pub fn run_log(last: Option<usize>, errors_only: bool) -> Result<()> {
     let reader = BufReader::new(file);
     
     let mut lines: Vec<String> = Vec::new();
-    for line in reader.lines().filter_map(|l| l.ok()) {
+    for line in reader.lines().map_while(Result::ok) {
         if errors_only {
             if line.contains("ERROR") || line.contains("WARN") {
                 lines.push(line);

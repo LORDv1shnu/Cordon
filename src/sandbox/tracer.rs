@@ -42,12 +42,12 @@ pub fn parse_strace_log(path: &Path) -> Result<Vec<String>> {
     let reader = BufReader::new(file);
     let mut denied_paths = HashSet::new();
 
-    for line in reader.lines().filter_map(|l| l.ok()) {
+    for line in reader.lines().map_while(Result::ok) {
         // strace line format example:
         // 12345 openat(AT_FDCWD, "/etc/passwd", O_RDONLY) = -1 ENOENT (No such file or directory)
         // 12345 access("/etc/shadow", R_OK) = -1 EACCES (Permission denied)
-        if line.contains("= -1 ENOENT") || line.contains("= -1 EACCES") {
-            if let Some(path) = extract_path(&line) {
+        if (line.contains("= -1 ENOENT") || line.contains("= -1 EACCES"))
+            && let Some(path) = extract_path(&line) {
                 // Ignore pseudo-filesystems and noisy paths
                 if !path.starts_with("/sys") 
                     && !path.starts_with("/proc") 
@@ -57,7 +57,6 @@ pub fn parse_strace_log(path: &Path) -> Result<Vec<String>> {
                     denied_paths.insert(path);
                 }
             }
-        }
     }
 
     let mut paths: Vec<String> = denied_paths.into_iter().collect();
@@ -67,11 +66,10 @@ pub fn parse_strace_log(path: &Path) -> Result<Vec<String>> {
 
 fn extract_path(line: &str) -> Option<String> {
     // Look for the first quote
-    if let Some(start) = line.find('"') {
-        if let Some(end) = line[start + 1..].find('"') {
+    if let Some(start) = line.find('"')
+        && let Some(end) = line[start + 1..].find('"') {
             return Some(line[start + 1..start + 1 + end].to_string());
         }
-    }
     None
 }
 

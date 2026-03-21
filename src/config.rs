@@ -237,32 +237,30 @@ pub fn remove_user_mount(path: String) -> Result<()> {
 
     if config.mounts.len() == initial_len {
         println!("⚠️  Path '{}' was not found in cordon.toml", abs_str);
-    } else {
-        if config.mounts.is_empty() {
-            // Delete the file if it's now empty
-            if let Ok(mut current) = std::env::current_dir() {
-                loop {
-                    let config_path = current.join("cordon.toml");
-                    if config_path.exists() {
-                        fs::remove_file(config_path)?;
-                        println!("✅ Removed empty cordon.toml");
-                        break;
-                    }
-                    if !current.pop() {
-                        break;
-                    }
+    } else if config.mounts.is_empty() {
+        // Delete the file if it's now empty
+        if let Ok(mut current) = std::env::current_dir() {
+            loop {
+                let config_path = current.join("cordon.toml");
+                if config_path.exists() {
+                    fs::remove_file(config_path)?;
+                    println!("✅ Removed empty cordon.toml");
+                    break;
+                }
+                if !current.pop() {
+                    break;
                 }
             }
-        } else {
-            let content =
-                toml::to_string_pretty(&config).context("Failed to serialise cordon.toml")?;
-            // We need to write to the ACTUAL file found.
-            // Simplified: write to the one in CWD if it exists, or the one found by find_user_config.
-            // More robust: find_user_config should probably return the path too.
-            // For now, write to ./cordon.toml as add_user_mount does.
-            fs::write("cordon.toml", content).context("Failed to write cordon.toml")?;
-            println!("✅ Removed '{}' from cordon.toml", abs_str);
         }
+    } else {
+        let content =
+            toml::to_string_pretty(&config).context("Failed to serialise cordon.toml")?;
+        // We need to write to the ACTUAL file found.
+        // Simplified: write to the one in CWD if it exists, or the one found by find_user_config.
+        // More robust: find_user_config should probably return the path too.
+        // For now, write to ./cordon.toml as add_user_mount does.
+        fs::write("cordon.toml", content).context("Failed to write cordon.toml")?;
+        println!("✅ Removed '{}' from cordon.toml", abs_str);
     }
 
     Ok(())

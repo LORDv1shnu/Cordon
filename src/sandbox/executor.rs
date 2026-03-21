@@ -21,35 +21,58 @@ use crate::sandbox::proxy::ProxyHandle;
 ///   6. Execute command (or print in dry-run mode)
 ///
 /// All mount paths come from system.toml and cordon.toml — nothing is hardcoded.
-pub fn run_sandboxed(
-    cmd: Vec<String>,
-    mut net: NetworkMode,
-    domains: Vec<String>,
-    dry_run: bool,
-    mut gui: bool,
-    mut optional: Vec<String>,
-    profile: Option<String>,
-    trace: bool,
-    quiet: bool,
-    verbose: bool,
-    net_is_explicit: bool,
-    mem: Option<String>,
-    cpu: Option<f32>,
-    pid_limit: Option<u32>,
-    timeout: Option<u64>,
-) -> Result<()> {
+pub struct SandboxOptions {
+    pub cmd: Vec<String>,
+    pub net: NetworkMode,
+    pub domains: Vec<String>,
+    pub dry_run: bool,
+    pub gui: bool,
+    pub optional: Vec<String>,
+    pub profile: Option<String>,
+    pub trace: bool,
+    pub quiet: bool,
+    pub verbose: bool,
+    pub net_is_explicit: bool,
+    pub mem: Option<String>,
+    pub cpu: Option<f32>,
+    pub pid_limit: Option<u32>,
+    pub timeout: Option<u64>,
+}
+
+pub fn run_sandboxed(opts: SandboxOptions) -> Result<()> {
+    let mut net = opts.net;
+    let mut gui = opts.gui;
+    let mut optional = opts.optional;
+
+    let SandboxOptions {
+        cmd,
+        domains,
+        dry_run,
+        // gui, // Handled above as mutable
+        // optional, // Handled above as mutable
+        profile,
+        trace,
+        quiet,
+        verbose,
+        net_is_explicit,
+        mem,
+        cpu,
+        pid_limit,
+        timeout,
+        .. // Ignore other fields already extracted
+    } = opts;
+
     // 0a. Resolve named profile (before cordon.toml merge)
     if let Some(ref profile_name) = profile {
         let named = resolve_profile(profile_name)?;
-        if !net_is_explicit {
-            if let Some(n) = named.network {
+        if !net_is_explicit
+            && let Some(n) = named.network {
                 net = match n.as_str() {
                     "allow" => NetworkMode::Allow,
                     "full" => NetworkMode::Full,
                     _ => NetworkMode::Disable,
                 };
             }
-        }
         if !gui {
             gui = named.gui.unwrap_or(false);
         }
@@ -64,15 +87,14 @@ pub fn run_sandboxed(
 
     // 0b. Merge user profile defaults if CLI arguments are at default values
     if let Ok(Some(cfg)) = crate::config::find_user_config() {
-        if !net_is_explicit {
-            if let Some(n) = cfg.network {
+        if !net_is_explicit
+            && let Some(n) = cfg.network {
                 net = match n.as_str() {
                     "allow" => NetworkMode::Allow,
                     "full" => NetworkMode::Full,
                     _ => NetworkMode::Disable,
                 };
             }
-        }
         if !gui {
             gui = cfg.gui.unwrap_or(false);
         }

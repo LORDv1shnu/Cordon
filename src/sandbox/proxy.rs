@@ -46,10 +46,7 @@ pub fn load_config(project_dir: &Path) -> ProxyConfig {
 
 fn load_from_path(path: &Path, _label: &str) -> ProxyConfig {
     match std::fs::read_to_string(path) {
-        Ok(contents) => match toml::from_str::<ProxyConfig>(&contents) {
-            Ok(cfg) => cfg,
-            Err(_) => ProxyConfig::default(),
-        },
+        Ok(contents) => toml::from_str::<ProxyConfig>(&contents).unwrap_or_default(),
         Err(_) => ProxyConfig::default(),
     }
 }
@@ -74,16 +71,14 @@ impl ProxyHandle {
         });
 
         thread::spawn(move || {
-            for stream in listener.incoming() {
-                if let Ok(stream) = stream {
-                    let domains_clone = Arc::clone(&domains);
-                    thread::spawn(move || {
-                        if let Err(e) = handle_connection(stream, domains_clone) {
-                            // Silently ignore connection errors for now
-                            let _ = e;
-                        }
-                    });
-                }
+            for stream in listener.incoming().flatten() {
+                let domains_clone = Arc::clone(&domains);
+                thread::spawn(move || {
+                    if let Err(e) = handle_connection(stream, domains_clone) {
+                        // Silently ignore connection errors for now
+                        let _ = e;
+                    }
+                });
             }
         });
 
@@ -151,6 +146,7 @@ fn handle_connection(mut client: TcpStream, allowed: Arc<Option<Vec<String>>>) -
                 break;
             }
         }
+
         let domain = if host.is_empty() { target } else { host };
 
         if is_allowed(domain, &allowed) {
