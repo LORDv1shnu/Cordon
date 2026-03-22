@@ -103,5 +103,6 @@ pub fn run_lock_verify() -> Result<()> {
     }
 
     info!("✅ Lock verification passed.");
+    println!("OK: Lock verification passed.");
     Ok(())
 }

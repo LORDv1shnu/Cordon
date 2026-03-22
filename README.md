@@ -108,6 +108,14 @@ cordon log
 cordon log --last 5
 cordon log --errors
 
+# Manage the cordon.lock file for reproducible sandbox environments
+cordon lock update
+cordon lock verify
+
+# Export/Import portable sandbox specifications (JSON)
+cordon export > spec.json
+cordon import spec.json
+
 # Show system.toml contents without scanning
 cordon status
 
@@ -211,7 +219,9 @@ Cordon/
 │   │   ├── syscalls.rs     # cordon syscalls
 │   │   ├── log.rs          # cordon log
 │   │   ├── init.rs         # cordon init
-│   │   └── doctor.rs       # cordon doctor
+│   │   ├── doctor.rs       # cordon doctor
+│   │   ├── lock.rs         # cordon lock
+│   │   └── spec.rs         # cordon export/import
 │   ├── scanner/            # System scanner — detects paths, writes system.toml
 │   │   ├── mod.rs
 │   │   ├── env_resolver.rs # XDG_RUNTIME_DIR + D-Bus + audio socket resolution

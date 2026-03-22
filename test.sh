@@ -704,6 +704,48 @@ run_cordon rc out err run --dry-run --verbose --seccomp none -- echo hello
 assert_exit    "run --seccomp none dry-run exits 0" 0 $rc
 assert_not_contains "none preset skips --seccomp arg" "--seccomp" "$out$err"
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  §21 — cordon lock
+# ─────────────────────────────────────────────────────────────────────────────
+section "21. cordon lock"
+WORKSPACE="$(fresh_workspace v21)"
+
+run_cordon rc out err lock update
+assert_exit         "lock update exits 0" 0 $rc
+assert_file_exists  "$WORKSPACE/cordon.lock" "cordon.lock created"
+
+run_cordon rc out err lock verify
+assert_exit         "lock verify exits 0" 0 $rc
+assert_contains     "lock verify prints OK" "OK" "$out$err"
+
+# Modification test: change a file and verify it fails
+echo "original" > "$WORKSPACE/lock-test.txt"
+run_cordon rc out err add "$WORKSPACE/lock-test.txt"
+run_cordon rc out err lock update
+sleep 1.1
+echo "changed" > "$WORKSPACE/lock-test.txt"
+run_cordon rc out err lock verify
+[[ $rc -ne 0 ]] && pass "lock verify fails after file change" || fail "lock verify should fail after file change"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  §22 — cordon export / import
+# ─────────────────────────────────────────────────────────────────────────────
+section "22. cordon export / import"
+WORKSPACE="$(fresh_workspace v22)"
+
+run_cordon rc out err add /tmp
+run_cordon rc out err export
+echo "$out" > "$WORKSPACE/spec.json"
+assert_exit         "cordon export exits 0" 0 $rc
+assert_file_exists  "$WORKSPACE/spec.json" "spec.json created"
+assert_file_contains "$WORKSPACE/spec.json" "/tmp" "exported spec contains mounts"
+
+mv "$WORKSPACE/cordon.toml" "$WORKSPACE/cordon.toml.bak"
+run_cordon rc out err import "$WORKSPACE/spec.json"
+assert_exit         "cordon import exits 0" 0 $rc
+assert_file_exists  "$WORKSPACE/cordon.toml" "cordon.toml restored by import"
+assert_file_contains "$WORKSPACE/cordon.toml" "/tmp" "imported config contains mounts"
+
 if [[ ${#FAILURES[@]} -gt 0 ]]; then
     echo
     printf "  ${RED}${BOLD}Failed tests:${RESET}\n"

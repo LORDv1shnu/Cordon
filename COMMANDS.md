@@ -427,6 +427,56 @@ Status: `[PLANNED — Phase 6]`
 
 ---
 
+---
+
+## `cordon lock update` / `verify` — Reproducible sandbox specs
+
+```
+cordon lock update
+cordon lock verify
+```
+
+Status: `[IMPLEMENTED — Phase 5.5]`
+
+Manages the `cordon.lock` file to ensure the sandbox environment hasn't drifted since the last successful run.
+
+- **`update`**: Calculates SHA-256 hashes of all system and project mount points and writes them to `cordon.lock`.
+- **`verify`**: Checks current mount points against the lockfile. Exits non-zero if any path is missing or its hash (mtime/size for dirs, SHA-256 for files) has changed.
+
+`cordon run` will automatically perform a verification check if a `cordon.lock` file exists in the project root.
+
+---
+
+## `cordon export` — Export sandbox specification
+
+```
+cordon export
+```
+
+Status: `[IMPLEMENTED — Phase 5.5]`
+
+Resolves the effective sandbox configuration (CLI flags + Named Profile + `cordon.toml`) and dumps it as a portable JSON specification to stdout.
+
+### Example
+
+```bash
+cordon run --gui --net=allow export > my-app.json
+```
+
+---
+
+## `cordon import` — Import sandbox specification
+
+```
+cordon import <spec.json>
+```
+
+Status: `[IMPLEMENTED — Phase 5.5]`
+
+Reads a JSON sandbox specification and writes it to the local `cordon.toml`. This allows sharing complex sandbox configurations between developers.
+
+---
+
 ## Next
 
 → [SCANNER_LOGIC.md](SCANNER_LOGIC.md) — how the scanner and integrity check work internally

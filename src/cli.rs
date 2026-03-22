@@ -222,6 +222,19 @@ pub enum Commands {
         action: LockCommands,
     },
 
+    /// Export the final resolved sandbox configuration as a portable JSON spec.
+    Export {
+        /// Optional named profile to export (otherwise uses project default).
+        #[arg(long, value_name = "NAME")]
+        profile: Option<String>,
+    },
+
+    /// Import a sandbox configuration from a JSON spec file into cordon.toml.
+    Import {
+        /// Path to the JSON spec file.
+        file: std::path::PathBuf,
+    },
+
     /// Manage reusable named sandbox profiles stored in ~/.config/cordon/profiles.toml.
     Profile {
         #[command(subcommand)]

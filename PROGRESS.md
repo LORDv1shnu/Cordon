@@ -215,25 +215,20 @@ Adding a seccomp filter layer makes cordon a genuinely layered sandbox:
 
 ---
 
-### Phase 5.5 — Reproducible Sandbox Specs `[PLANNED]`
+### Phase 5.5 — Reproducible Sandbox Specs ✅
 
-**`cordon.lock` File**
-
-The problem: `cordon.toml` says *what* to mount but not *what version* of the system modules were used. After a distro upgrade, the sandbox might silently behave differently.
-
-- After each successful run, write `cordon.lock` with:
-  - SHA-256 of every mount path used.
-  - Cordon version, scan timestamp.
-- `cordon run` checks the lock: if a mount path has changed (different inode / hash), warn the user before running.
-- `cordon lock update` — regenerate the lock after an intentional upgrade.
-- `cordon lock verify` — standalone check (useful in CI).
-
-**`cordon export` / `cordon import`**
-- `cordon export > sandbox-spec.json` — dump the full resolved mount list as JSON.
-- `cordon import sandbox-spec.json` — write a `cordon.toml` from an exported spec.
-- Makes sandbox configs portable and shareable between developers on the same distro.
+| Feature | Notes |
+|---------|-------|
+| `cordon.lock` File | Stores SHA-256 of all mount source paths + Cordon version |
+| `cordon lock update` | Regenerates the lockfile with current system state |
+| `cordon lock verify` | standalone check for environment drift |
+| Auto-verification | `cordon run` warns if the lockfile hash mismatches |
+| `cordon export` | Dumps resolved sandbox configuration as portable JSON |
+| `cordon import` | Creates `cordon.toml` from an exported JSON spec |
 
 ---
+
+### Phase 6 — Shell & Editor Integration `[PLANNED]`
 
 ### Phase 6 — Shell & Editor Integration `[PLANNED]`
 

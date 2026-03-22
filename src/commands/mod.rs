@@ -12,3 +12,4 @@ pub mod log;
 pub mod init;
 pub mod doctor;
 pub mod lock;
+pub mod spec;

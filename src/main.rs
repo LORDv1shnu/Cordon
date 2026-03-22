@@ -287,6 +287,9 @@ fn main() {
             })(),
             cli::LockCommands::Verify => commands::lock::run_lock_verify(),
         },
+
+        Commands::Export { profile } => commands::spec::run_export(profile),
+        Commands::Import { file } => commands::spec::run_import(file),
     };
 
     if let Err(e) = result {

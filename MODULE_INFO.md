@@ -29,7 +29,9 @@ Cordon/
 │   │   ├── syscalls.rs     # cordon syscalls
 │   │   ├── log.rs          # cordon log (read last-run.log)
 │   │   ├── init.rs         # cordon init
-│   │   └── doctor.rs       # cordon doctor
+│   │   ├── doctor.rs       # cordon doctor
+│   │   ├── lock.rs         # cordon lock (SHA-256 verification)
+│   │   └── spec.rs         # cordon export/import (JSON specs)
 │   ├── scanner/            # System scanner — detects paths, writes system.toml
 │   │   ├── mod.rs
 │   │   ├── env_resolver.rs # XDG_RUNTIME_DIR + D-Bus + audio socket resolution
