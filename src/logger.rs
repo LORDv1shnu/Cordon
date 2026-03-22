@@ -17,7 +17,7 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 /// Call once at startup (before any `tracing` macros are used).
 ///
 /// `debug` comes from the `--debug` CLI flag on `cordon run`.
-pub fn init_logging(debug: bool, quiet: bool) -> anyhow::Result<()> {
+pub fn init_logging(debug: bool, quiet: bool) -> anyhow::Result<tracing_appender::non_blocking::WorkerGuard> {
     // ── 1. File sink (full trace, persisted across runs) ─────────────────────
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     let log_dir = PathBuf::from(&home).join(".config/cordon/logs");
@@ -25,10 +25,6 @@ pub fn init_logging(debug: bool, quiet: bool) -> anyhow::Result<()> {
 
     let file_appender = tracing_appender::rolling::never(&log_dir, "last-run.log");
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
-
-    // Keep the guard alive for the lifetime of the process so the background
-    // flusher thread doesn't shut down prematurely.
-    std::mem::forget(guard);
 
     // ── 2. Stderr sink (filtered, human-readable) ─────────────────────────────
     let stderr_level = if quiet {
@@ -58,5 +54,5 @@ pub fn init_logging(debug: bool, quiet: bool) -> anyhow::Result<()> {
         .with(file_layer)
         .init();
 
-    Ok(())
+    Ok(guard)
 }

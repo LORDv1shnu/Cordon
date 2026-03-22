@@ -26,6 +26,7 @@ Cordon/
 │   │   ├── list.rs         # cordon list
 │   │   ├── profile.rs      # cordon profile (create, list, delete, show)
 │   │   ├── status.rs       # cordon status
+│   │   ├── syscalls.rs     # cordon syscalls
 │   │   ├── log.rs          # cordon log (read last-run.log)
 │   │   ├── init.rs         # cordon init
 │   │   └── doctor.rs       # cordon doctor
@@ -42,12 +43,14 @@ Cordon/
 │       ├── mounts.rs       # Applies system + user mounts to bwrap command
 │       ├── network.rs      # NetworkMode enum
 │       ├── proxy.rs        # Native Rust domain-filtering HTTP/HTTPS proxy
+│       ├── seccomp.rs      # Seccomp BPF filter generation
 │       └── tracer.rs       # Wrap bwrap with strace to detect denied paths
 ├── COMMANDS.md             # Full command reference & future plans
 ├── MODULE_INFO.md          # ← you are here
 ├── PROGRESS.md             # All completed and planned work
 ├── README.md               # User-facing docs
 ├── SCANNER_LOGIC.md        # Internal scanner design and architecture
+├── test.sh                 # CLI regression test suite
 ```
 
 ---
@@ -103,7 +106,7 @@ Parses CLI via clap, then dispatches to the right module. If you add a new subco
 
 - `Cli` is the top-level clap `Parser`.
 - `Commands` is the `Subcommand` enum: `Run { ... }`, `Scan { ... }`, `Add { ... }`, `Remove { ... }`, `Edit {}`, `Set { ... }`, `Unset { ... }`, `Check`, `List`, `Status`, `Profile { ... }`, `Log { ... }`, `Init { ... }`, `Doctor`.
-- `Run` has: `cmd`, `net`, `domains`, `dry_run`, `gui`, `optional`, `debug`, `quiet`, `verbose`.
+- `Run` has: `cmd`, `net`, `domains`, `dry_run`, `gui`, `optional`, `debug`, `quiet`, `verbose`, `mem`, `cpu`, `pid-limit`, `timeout`, `seccomp`.
 - `#[arg(last = true)]` on `cmd` is what makes `cordon run -- <cmd>` work.
 
 ---
@@ -201,19 +204,21 @@ Reads config, never writes it. All paths come from `system.toml` and `cordon.tom
 
 Before anything else, resolves any `--profile` argument. Then reads the project's `cordon.toml` and merges profile defaults into the effective flags. Resolution rules (lowest priority to highest): built-in defaults → named profile → cordon.toml → CLI flags.
 
-```
-effective_net     = cli_net if cli_net != Disable, else cordon.toml.network else profile.network
-effective_gui     = cli_gui || cordon.toml.gui || profile.gui
-effective_optional= deduplicate(cli_optional + cordon.toml.optional + profile.optional)
-```
-
 ### `network.rs`
 
 `NetworkMode` enum: `Disable` (default), `Allow` (proxy), `Full` (unrestricted).
 
 ### `proxy.rs`
 
-Native Rust multi-threaded HTTP/HTTPS domain-filtering proxy. Started as a subprocess when `--net=allow`. Reads allowed domains from `proxy.toml` and `--domain` flags.
+Native Rust domain-filtering HTTP/HTTPS proxy. Started as a subprocess when `--net=allow`. Reads allowed domains from `proxy.toml` and `--domain` flags.
+
+### `seccomp.rs`
+
+Seccomp BPF filter generation and compilation using `seccompiler`.
+
+### `tracer.rs`
+
+Wrap bwrap with strace to detect denied paths
 
 ---
 

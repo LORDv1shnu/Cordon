@@ -45,6 +45,7 @@ Status: `[IMPLEMENTED — Phase 1]`
 | `--cpu <N>` | float | — | CPU limit in cores (e.g. `0.5`, `2.0`). Requires systemd-run |
 | `--pid-limit <N>` | int | — | Maximum number of processes/threads. Requires systemd-run |
 | `--timeout <S>` | int | — | Execution time limit in seconds. Requires systemd-run |
+| `--seccomp <PRESET>` | enum | `none` | Apply a seccomp syscall filter: `basic`, `strict`, `none` |
 
 ### Network Profiles (`--net`)
 
@@ -294,6 +295,22 @@ cordon unset --gui --optional audio_pipewire
 | `126` | Sandboxed command found but not executable |
 | `127` | Sandboxed command not found inside sandbox |
 | `N` | Any other code — forwarded directly from the sandboxed process |
+
+---
+
+## `cordon syscalls` — List syscall filters
+
+```
+cordon syscalls [--preset <PRESET>]
+```
+
+Status: `[IMPLEMENTED — Phase 5]`
+
+Lists the syscalls blocked or allowed by each seccomp preset.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--preset` | `basic` | Which preset to display (`basic` or `strict`) |
 
 ---
 

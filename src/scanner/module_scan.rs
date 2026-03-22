@@ -38,7 +38,7 @@ fn ask_for_path(module_name: &str, tried_path: &str) -> Option<String> {
 /// the user is prompted for a corrected path (handles non-standard distro layouts
 /// such as NixOS or Gentoo). Optional modules that cannot be found are recorded
 /// as unverified without prompting.
-pub fn scan_module_interactive(module: &CoreModule, distro: &crate::distro::Distro) -> Result<Option<MountEntry>> {
+pub fn scan_module_interactive(module: &CoreModule, distro: &crate::distro::Distro, interactive: bool) -> Result<Option<MountEntry>> {
     // D-Bus session socket gets special resolution from DBUS_SESSION_BUS_ADDRESS.
     if module.name == "dbus_session" {
         if let Some(socket_path) = resolve_dbus_socket() {
@@ -94,7 +94,7 @@ pub fn scan_module_interactive(module: &CoreModule, distro: &crate::distro::Dist
         }
     }
 
-    let actual_dir = if !Path::new(&actual_dir).exists() && module.required {
+    let actual_dir = if interactive && !Path::new(&actual_dir).exists() && module.required {
         // Required module not found — ask user for the correct path.
         match ask_for_path(&module.name, &actual_dir) {
             Some(corrected) => corrected,

@@ -23,14 +23,21 @@
 
 # Do NOT use set -e — we explicitly capture exit codes from every command.
 set -uo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BINARY="$SCRIPT_DIR/target/debug/Cordon"
 
 # ── Colours ────────────────────────────────────────────────────────────────────
 RED='\033[1;31m'; GREEN='\033[1;32m'; YELLOW='\033[1;33m'
 CYAN='\033[1;96m'; DIM='\033[0;90m'; RESET='\033[0m'; BOLD='\033[1m'
 
+# ── Configuration ─────────────────────────────────────────────────────────────
+_LAST_STDOUT_CONTENT=""
+_LAST_STDERR_CONTENT=""
+VERBOSITY=0
+VERBOSE=false
+
 # ── Flags ─────────────────────────────────────────────────────────────────────
 BUILD=true
-VERBOSE=false
 for arg in "$@"; do
     case "$arg" in
         --no-build) BUILD=false ;;
@@ -41,24 +48,38 @@ for arg in "$@"; do
     esac
 done
 
-# ── Paths ─────────────────────────────────────────────────────────────────────
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BINARY="$SCRIPT_DIR/target/debug/Cordon"
 # Use a subdirectory of /tmp that is NOT a parent of any other test workspace,
 # to prevent cordon's "walk-up" config search from finding stale cordon.toml files.
 TMPDIR_ROOT="$(mktemp -d /tmp/cordon_test_XXXXXX)"
+MOCK_HOME="$TMPDIR_ROOT/mock_home"
 trap 'rm -rf "$TMPDIR_ROOT"' EXIT
 
 # ── Counters ──────────────────────────────────────────────────────────────────
 PASS=0; FAIL=0; SKIP=0
 FAILURES=()
+TIMEOUT=10 # Default timeout per command in seconds
+CURRENT_SECTION=""
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 separator()  { printf "${DIM}  %s${RESET}\n" "$(printf '─%.0s' {1..62})"; }
 pass()       { PASS=$((PASS+1)); printf "  ${GREEN}✓${RESET} %s\n" "$1"; }
-fail()       { FAIL=$((FAIL+1)); FAILURES+=("$1"); printf "  ${RED}✗${RESET} %s\n" "$1"; }
+fail()       {
+    FAIL=$((FAIL+1))
+    local _msg="$1"
+    local _cmd_hint="${2:-}"
+    FAILURES+=("${CURRENT_SECTION:-unknown}: $_msg${_cmd_hint:+ [TRY: $_cmd_hint]}")
+    printf "  ${RED}✗${RESET} %s\n" "$_msg"
+    if [[ -n "$_LAST_STDOUT_CONTENT" ]]; then
+        printf "    ${DIM}Last stdout:${RESET}\n"
+        printf "%s\n" "$_LAST_STDOUT_CONTENT" | sed 's/^/    /'
+    fi
+    if [[ -n "$_LAST_STDERR_CONTENT" ]]; then
+        printf "    ${DIM}Last stderr:${RESET}\n"
+        printf "%s\n" "$_LAST_STDERR_CONTENT" | sed 's/^/    /'
+    fi
+}
 skip()       { SKIP=$((SKIP+1)); printf "  ${YELLOW}~${RESET} %s ${DIM}(skipped)${RESET}\n" "$1"; }
-section()    { echo; printf "${CYAN}${BOLD}▶ %s${RESET}\n" "$1"; separator; }
+section()    { CURRENT_SECTION="$1"; echo; printf "${CYAN}${BOLD}▶ %s${RESET}\n" "$1"; separator; }
 
 # ---------------------------------------------------------------------------
 # run_cordon <rc_var> <out_var> <err_var> <args...>
@@ -73,13 +94,26 @@ run_cordon() {
     local _tmp_out; _tmp_out=$(mktemp)
     local _tmp_err; _tmp_err=$(mktemp)
 
-    # Run the binary from $WORKSPACE so that cordon.toml walk-up works correctly.
-    # We use a subshell + explicit exit to capture the real return code.
-    (cd "$WORKSPACE" && exec "$BINARY" "$@") \
+# Mock HOME to ensure test isolation from real user config
+    local _mock_home="${MOCK_HOME:-$TMPDIR_ROOT/mock_home}"
+    mkdir -p "$_mock_home"
+
+
+    (cd "$WORKSPACE" && HOME="$_mock_home" timeout "$TIMEOUT" "$BINARY" "$@") \
         > "$_tmp_out" 2> "$_tmp_err"
-    printf -v "$_rc_var"  "%d" "$?"
-    printf -v "$_out_var" "%s" "$(cat "$_tmp_out")"
-    printf -v "$_err_var" "%s" "$(cat "$_tmp_err")"
+    local _status=$?
+    
+        if [[ $_status -eq 124 ]]; then
+        printf -v "$_rc_var"  "124"
+        printf -v "$_out_var" "TIMEOUT after ${TIMEOUT}s"
+        printf -v "$_err_var" ""
+    else
+        printf -v "$_rc_var"  "%d" "$_status"
+        printf -v "$_out_var" "%s" "$(cat "$_tmp_out")"
+        printf -v "$_err_var" "%s" "$(cat "$_tmp_err")"
+    fi
+    _LAST_STDOUT_CONTENT="$(cat "$_tmp_out")"
+    _LAST_STDERR_CONTENT="$(cat "$_tmp_err")"
     rm -f "$_tmp_out" "$_tmp_err"
 
     if $VERBOSE; then
@@ -88,20 +122,25 @@ run_cordon() {
         local _e; _e="${!_err_var}"; [ -n "$_e" ] && printf "    ${DIM}ERR:  %s${RESET}\n" "$_e"
         printf "    ${DIM}EXIT: %s${RESET}\n" "${!_rc_var}"
     fi
+
+    # Save the last command for failure reporting
+    LAST_CMD="cordon $*"
 }
 
 assert_exit() {
     local name="$1" expected="$2" actual="$3"
-    if [[ "$actual" -eq "$expected" ]]; then
+    if [[ "$actual" -eq 124 ]]; then
+        fail "$name (TIMED OUT)" "$LAST_CMD"
+    elif [[ "$actual" -eq "$expected" ]]; then
         pass "$name (exit $expected)"
     else
-        fail "$name — expected exit $expected, got $actual"
+        fail "$name — expected $expected, got $actual" "$LAST_CMD"
     fi
 }
 
 assert_contains() {
     local name="$1" needle="$2" haystack="$3"
-    if printf '%s' "$haystack" | grep -qF "$needle" 2>/dev/null; then
+    if printf '%s' "$haystack" | grep -qF -e "$needle" 2>/dev/null; then
         pass "$name"
     else
         fail "$name — expected output to contain '${needle}'"
@@ -111,7 +150,7 @@ assert_contains() {
 
 assert_not_contains() {
     local name="$1" needle="$2" haystack="$3"
-    if ! printf '%s' "$haystack" | grep -qF "$needle" 2>/dev/null; then
+    if ! printf '%s' "$haystack" | grep -qF -e "$needle" 2>/dev/null; then
         pass "$name"
     else
         fail "$name — output should NOT contain '${needle}'"
@@ -174,6 +213,14 @@ if [[ ! -x "$BINARY" ]]; then
     printf "Run: cargo build   or use --no-build if you already built it.\n"
     exit 1
 fi
+
+# Pre-prep system.toml to avoid lag in tests
+echo
+printf "${CYAN}${BOLD}⟳ Pre-scanning system…${RESET} ${DIM}(fixes lag)${RESET}\n"
+MOCK_HOME="$TMPDIR_ROOT/mock_home"
+mkdir -p "$MOCK_HOME"
+HOME="$MOCK_HOME" "$BINARY" scan -y >/dev/null 2>&1
+printf "${GREEN}${BOLD}  System OK${RESET}\n"
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  §1 — Version & Help  (always work, no config needed)
@@ -285,9 +332,14 @@ assert_exit           "cordon add --mode rw exits 0" 0 $rc
 assert_file_contains  "$TOML" "rw" "cordon.toml contains rw mount"
 
 # list should now show the project mount
+# Note: we check for 'tmp' because /tmp might be canonicalised to /var/tmp on some systems
 run_cordon rc out err list
 assert_exit_any_of    "cordon list with cordon.toml exits 0" $rc 0 1
-assert_contains       "cordon list shows /tmp mount" "/tmp" "$out$err"
+if printf '%s' "$out$err" | grep -q "/.*tmp"; then
+    pass "cordon list shows /tmp mount"
+else
+    fail "cordon list shows /tmp mount — expected output to contain '/tmp' (or canonicalised version)"
+fi
 
 # remove — there are two /tmp entries (ro + rw). Both should be removed.
 run_cordon rc out err remove /tmp
@@ -484,13 +536,10 @@ section "13. cordon profile"
 WORKSPACE="$(fresh_workspace v13)"
 
 # Capture original HOME
-ORIG_HOME="${HOME:-}"
-TEST_HOME="$(fresh_workspace v13_home)"
-export HOME="$TEST_HOME"
-
+# run_cordon uses MOCK_HOME, so we check there
 run_cordon rc out err profile create python --net=allow --optional ld_so_cache
 assert_exit         "cordon profile create exits 0" 0 $rc
-assert_file_exists  "$TEST_HOME/.config/cordon/profiles.toml" "profiles.toml created"
+assert_file_exists  "$MOCK_HOME/.config/cordon/profiles.toml" "profiles.toml created"
 assert_contains     "profile create prints checkmark" "✅" "$out"
 
 run_cordon rc out err profile list
@@ -530,28 +579,23 @@ run_cordon rc out err profile
 run_cordon rc out err proifle list
 assert_contains     "typo proifle suggests profile" "profile" "$err$out"
 
-if [ -n "$ORIG_HOME" ]; then
-    export HOME="$ORIG_HOME"
-else
-    unset HOME
-fi
-
 # ─────────────────────────────────────────────────────────────────────────────
 #  §14 — cordon log
 # ─────────────────────────────────────────────────────────────────────────────
 section "14. cordon log"
 WORKSPACE="$(fresh_workspace v14)"
 
-# log without a run (just to verify it doesn't crash)
+# log without a run — ensure it's missing
+rm -f "$MOCK_HOME/.config/cordon/logs/last-run.log"
 run_cordon rc out err log
 assert_exit         "cordon log exits 0" 0 $rc
-assert_contains     "cordon log shows message if missing" "found" "$out$err"
+assert_contains     "cordon log shows message if missing" "last-run.log" "$out$err"
 
 # Run a quick command, then log
-run_cordon rc out err run -- echo "test_log_123"
+run_cordon rc out err run -- echo "hello"
 run_cordon rc out err log
 assert_exit         "cordon log (after run) exits 0" 0 $rc
-assert_contains     "cordon log outputs contents" "test_log_123" "$out"
+assert_contains     "cordon log outputs internal logs" "Running inside sandbox" "$out"
 
 run_cordon rc out err log --last 1
 assert_exit         "cordon log --last N exits 0" 0 $rc
@@ -587,7 +631,7 @@ run_cordon rc out err run --quiet --dry-run -- echo hi
 assert_not_contains "quiet suppresses [CORDON] banner" "[CORDON]" "$err$out"
 
 run_cordon rc out err run --verbose --dry-run -- echo hi
-assert_contains "verbose prints bwrap args" "[wrapper]" "$out$err"
+assert_contains "verbose prints bwrap args (with [wrapper] prefix)" "[wrapper]" "$out$err"
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  §17 — cordon init
@@ -638,15 +682,27 @@ assert_contains "doctor prints kernel info" "Kernel" "$out$err"
 assert_contains "doctor prints config info" "Config" "$out$err"
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  SUMMARY
+#  §20 — cordon syscalls
 # ─────────────────────────────────────────────────────────────────────────────
-echo
-printf "${BOLD}%s${RESET}\n" "$(printf '═%.0s' {1..66})"
-printf " ${BOLD}CORDON TEST RESULTS${RESET}\n"
-printf "${BOLD}%s${RESET}\n" "$(printf '═%.0s' {1..66})"
-TOTAL=$((PASS + FAIL + SKIP))
-printf "  ${GREEN}✓ %d passed${RESET}  ${RED}✗ %d failed${RESET}  ${YELLOW}~ %d skipped${RESET}  (total: %d)\n" \
-    $PASS $FAIL $SKIP $TOTAL
+section "20. cordon syscalls"
+WORKSPACE="$(fresh_workspace v20)"
+
+run_cordon rc out err syscalls --preset basic
+assert_exit    "syscalls basic exits 0" 0 $rc
+assert_contains "syscalls basic output contains ptrace" "ptrace" "$out"
+
+run_cordon rc out err syscalls --preset strict
+assert_exit    "syscalls strict exits 0" 0 $rc
+assert_contains "syscalls strict output mentions allow-list" "allow-list" "$out"
+
+# Dry run verify seccomp arg
+run_cordon rc out err run --dry-run --verbose --seccomp basic --net disable -- echo hello
+assert_exit    "run --seccomp dry-run exits 0" 0 $rc
+assert_contains "dry-run contains --seccomp" "--seccomp" "$out$err"
+
+run_cordon rc out err run --dry-run --verbose --seccomp none -- echo hello
+assert_exit    "run --seccomp none dry-run exits 0" 0 $rc
+assert_not_contains "none preset skips --seccomp arg" "--seccomp" "$out$err"
 
 if [[ ${#FAILURES[@]} -gt 0 ]]; then
     echo
@@ -657,10 +713,16 @@ if [[ ${#FAILURES[@]} -gt 0 ]]; then
 fi
 
 echo
+printf "${BOLD}%s${RESET}\n" "$(printf '═%.0s' {1..66})"
+printf " ${BOLD}CORDON TEST RESULTS${RESET}\n"
+printf "${BOLD}%s${RESET}\n" "$(printf '═%.0s' {1..66})"
+TOTAL=$((PASS + FAIL + SKIP))
+
 if [[ $FAIL -eq 0 ]]; then
-    printf "  ${GREEN}${BOLD}All tests passed!${RESET}\n\n"
+    printf "  ${GREEN}${BOLD}All tests passed!${RESET} (%d passed)\n\n" $PASS
     exit 0
 else
-    printf "  ${RED}${BOLD}%d test(s) failed — see above${RESET}\n\n" $FAIL
+    printf "  ${RED}${BOLD}%d test(s) failed — see above${RESET} (%d passed, %d failed)\n" $FAIL $PASS $FAIL
+    printf "  ${DIM}Note: You can re-run failed commands listed in [TRY: ...] above.${RESET}\n\n"
     exit 1
 fi

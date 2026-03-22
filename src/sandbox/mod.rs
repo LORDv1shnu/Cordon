@@ -25,6 +25,7 @@ pub mod mounts;
 pub mod network;
 pub mod proxy;
 pub mod tracer;
+pub mod seccomp;
 pub mod limits;
 
 pub use executor::run_sandboxed;

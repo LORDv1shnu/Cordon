@@ -133,13 +133,17 @@ fn main() {
             cpu,
             pid_limit,
             timeout,
+            seccomp,
         } => {
             // Initialise logging before doing anything else so that every
             // subsequent tracing macro call is captured.
-            if let Err(e) = logger::init_logging(debug, quiet) {
-                eprintln!("critical: failed to initialise logger: {e}");
-                std::process::exit(exit_codes::INTERNAL_ERROR);
-            }
+            let _log_guard = match logger::init_logging(debug, quiet) {
+                Ok(g) => g,
+                Err(e) => {
+                    eprintln!("critical: failed to initialise logger: {e}");
+                    std::process::exit(exit_codes::INTERNAL_ERROR);
+                }
+            };
 
             let net_val = net.unwrap_or(crate::sandbox::network::NetworkMode::Disable);
             sandbox::run_sandboxed(sandbox::executor::SandboxOptions {
@@ -158,17 +162,18 @@ fn main() {
                 cpu,
                 pid_limit,
                 timeout,
+                seccomp,
             })
         }
 
-        Commands::Scan { distro } => {
+        Commands::Scan { distro, yes } => {
             // scanner::full_scan() prints its own header — no need to print here
             let distro_override = match distro.as_deref() {
                 Some("nixos") => Some(crate::distro::Distro::NixOS),
                 Some(_) => Some(crate::distro::Distro::Standard),
                 None => None,
             };
-            scanner::full_scan(distro_override)}
+            scanner::full_scan(distro_override, !yes)}
 
         Commands::Init { yes, force } => commands::init::run_init(yes, force),
 
@@ -243,6 +248,8 @@ fn main() {
             cli::ProfileCommands::Delete { name } => commands::profile::run_delete(name),
             cli::ProfileCommands::Show { name } => commands::profile::run_show(name),
         },
+
+        Commands::Syscalls { preset } => commands::syscalls::run_syscalls(preset),
     };
 
     if let Err(e) = result {

@@ -7,6 +7,7 @@ pub mod check;
 pub mod list;
 pub mod profile;
 pub mod status;
+pub mod syscalls;
 pub mod log;
 pub mod init;
 pub mod doctor;

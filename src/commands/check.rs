@@ -142,6 +142,21 @@ pub fn run_check() -> Result<()> {
     };
     results.push(("system.toml", system_check));
 
+    // ── 5. Seccomp BPF support ───────────────────────────────────────────────
+    debug!("check: seccomp support");
+    let seccomp_actions_path = "/proc/sys/kernel/seccomp/actions_avail";
+    let seccomp_check = if std::path::Path::new(seccomp_actions_path).exists() {
+        let avail = std::fs::read_to_string(seccomp_actions_path).unwrap_or_default();
+        if avail.contains("errno") && avail.contains("allow") {
+            CheckResult::Ok("kernel supports seccomp BPF (errno/allow)".to_string())
+        } else {
+            CheckResult::Warn("seccomp BPF supported but missing errno/allow actions".to_string())
+        }
+    } else {
+        CheckResult::Warn("seccomp BPF support not detected in kernel".to_string())
+    };
+    results.push(("seccomp BPF", seccomp_check));
+
     // ── 5-7: Module checks (only if system.toml parsed OK) ───────────────────
     let system_cfg = std::fs::read_to_string(&system_toml_path)
         .ok()

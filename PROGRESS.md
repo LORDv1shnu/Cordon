@@ -200,31 +200,18 @@
 
 ---
 
-### Phase 5 — Syscall Filtering (seccomp) `[PLANNED]`
+### Phase 5 — Syscall Filtering (seccomp) ✅
 
 Adding a seccomp filter layer makes cordon a genuinely layered sandbox:
 
-```
-filesystem isolation (bwrap namespaces)   ← already done
- + network isolation (proxy / unshare)    ← already done
- + syscall filtering (seccomp)            ← this phase
- + resource limits (cgroups)              ← Phase 4.5
-```
-
-**`--seccomp <PRESET>` Flag**
-- `basic` — block a minimal set of dangerous syscalls: `ptrace`, `process_vm_readv`, `userfaultfd`, `perf_event_open`, `kexec_load`.
-- `strict` — block everything not in a known-good allowlist (baseline: what Chrome uses).
-- `none` — disable seccomp entirely (for debugging).
-- Custom policy file: `--seccomp-file path/to/policy.bpf`.
-
-**How it works:**
-- Generate a BPF program from the preset and pass it to bwrap via `--seccomp <fd>`.
-- Policy is compiled at runtime from a human-readable TOML list in `core.toml`.
-- Deny action: `ENOSYS` (cleaner than SIGKILL — app gets a sensible error).
-
-**`cordon syscalls` Subcommand**
-- Lists the syscalls blocked by each preset in a readable table.
-- Example: `cordon syscalls --preset strict`
+| Feature | Notes |
+|---------|-------|
+| `--seccomp <PRESET>` | `basic` (block dangerous), `strict` (allow-list), `none` |
+| `seccompiler` integration | Pure-Rust BPF compilation, no native dependency |
+| `cordon syscalls` | Tabular display of blocked/allowed syscalls per preset |
+| `ENOSYS` trapping | Trap blocked calls with "Function not implemented" (cleaner UX) |
+| bwrap integration | Passes compiled BPF via pipe-fd to `--seccomp` |
+| **Polish Pass ✅** | Refined `strict` profile, fixed `test.sh` grep bugs, zero clippy warnings |
 
 ---
 

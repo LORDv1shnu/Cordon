@@ -72,8 +72,6 @@ fn apply_network_mounts(bwrap: &mut Command) {
 }
 
 pub fn apply_environment(bwrap: &mut Command, gui: bool) {
-    #[allow(unused_imports)]
-    use tracing::debug;
     if gui {
         // Environment variables required for GUI support
         if let Ok(display) = std::env::var("DISPLAY") {

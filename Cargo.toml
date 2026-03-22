@@ -14,3 +14,8 @@ thiserror = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
+seccompiler = { version = "0.4.0", features = ["json"] }
+tempfile = "3.10"
+syscallz = "0.16"
+serde_json = "1.0"
+libc = "0.2"

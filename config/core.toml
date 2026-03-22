@@ -311,3 +311,21 @@ functionality  = "Without this, PulseAudio-based sound will not work. Apps that 
 mode           = "rw"
 when           = "optional"
 required       = false
+
+# ==============================================================
+# SECCOMP PRESETS
+# Defined here for documentation and UI listing (cordon syscalls).
+# The actual BPF logic is in src/sandbox/seccomp.rs.
+# ==============================================================
+
+[seccomp.basic]
+description = "Blocks common dangerous syscalls while staying broadly compatible."
+blocked = [
+    "ptrace", "process_vm_readv", "process_vm_writev",
+    "userfaultfd", "perf_event_open", "kexec_load",
+    "mount", "pivot_root"
+]
+
+[seccomp.strict]
+description = "Everything not in the strict allow-list is blocked (Chrome/Flatpak baseline)."
+allowed = "STRICT_ALLOWLIST"

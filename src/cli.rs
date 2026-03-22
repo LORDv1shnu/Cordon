@@ -95,6 +95,11 @@ pub enum Commands {
         /// Execution time limit in seconds. Requires systemd-run.
         #[arg(long, value_name = "SECS")]
         timeout: Option<u64>,
+
+        /// Apply a seccomp syscall filter preset.
+        /// Presets: basic (block dangerous), strict (allow-list), none.
+        #[arg(long, value_name = "PRESET")]
+        seccomp: Option<crate::sandbox::seccomp::SeccompPreset>,
     },
 
     /// Scan the system and generate ~/.config/cordon/system.toml.
@@ -102,6 +107,10 @@ pub enum Commands {
         /// Override distro detection (e.g. --distro nixos).
         #[arg(long, value_name = "NAME")]
         distro: Option<String>,
+
+        /// Non-interactive mode — skip all prompts and use defaults.
+        #[arg(long, short = 'y', default_value_t = false)]
+        yes: bool,
     },
 
     /// Scaffold a cordon.toml in the current directory.
@@ -203,6 +212,13 @@ pub enum Commands {
     Profile {
         #[command(subcommand)]
         action: ProfileCommands,
+    },
+
+    /// List syscalls blocked or allowed by each seccomp preset.
+    Syscalls {
+        /// Which preset to display (basic, strict). Default: basic.
+        #[arg(long, value_name = "PRESET")]
+        preset: Option<crate::sandbox::seccomp::SeccompPreset>,
     },
 }
 
