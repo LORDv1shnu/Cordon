@@ -761,7 +761,7 @@ printf "${BOLD}%s${RESET}\n" "$(printf '═%.0s' {1..66})"
 TOTAL=$((PASS + FAIL + SKIP))
 
 if [[ $FAIL -eq 0 ]]; then
-    printf "  ${GREEN}${BOLD}All tests passed!${RESET} (%d passed)\n\n" $PASS
+    printf "  ${GREEN}${BOLD}All tests passed!${RESET} (%d passed) Thankfully!\n\n" $PASS
     exit 0
 else
     printf "  ${RED}${BOLD}%d test(s) failed — see above${RESET} (%d passed, %d failed)\n" $FAIL $PASS $FAIL
