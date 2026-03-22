@@ -124,6 +124,12 @@ cordon remove /path/to/dir
 # Open the per-project cordon.toml in the system editor
 cordon edit
 
+# Apply a seccomp syscall filter preset (basic, strict, none)
+cordon run --seccomp basic -- <command>
+
+# List syscalls blocked or allowed by each preset
+cordon syscalls --preset basic
+
 # Scaffold a cordon.toml in the current directory interactively
 cordon init
 
@@ -200,9 +206,12 @@ Cordon/
 │   ├── commands/           # Standalone subcommand implementations
 │   │   ├── check.rs        # cordon check
 │   │   ├── list.rs         # cordon list
-│   │   ├── profile.rs      # cordon profile (create, list, delete, show)
+│   │   ├── profile.rs      # cordon profile
 │   │   ├── status.rs       # cordon status
-│   │   └── log.rs          # cordon log
+│   │   ├── syscalls.rs     # cordon syscalls
+│   │   ├── log.rs          # cordon log
+│   │   ├── init.rs         # cordon init
+│   │   └── doctor.rs       # cordon doctor
 │   ├── scanner/            # System scanner — detects paths, writes system.toml
 │   │   ├── mod.rs
 │   │   ├── env_resolver.rs # XDG_RUNTIME_DIR + D-Bus + audio socket resolution
@@ -216,6 +225,7 @@ Cordon/
 │       ├── mounts.rs       # Applies system + user mounts to bwrap command
 │       ├── network.rs      # NetworkMode enum
 │       ├── proxy.rs        # Native Rust domain-filtering HTTP/HTTPS proxy
+│       ├── seccomp.rs      # Seccomp BPF filter generation
 │       └── tracer.rs       # Wrap bwrap with strace to detect denied paths
 ├── COMMANDS.md             # Full command reference & future plans
 ├── MODULE_INFO.md          # Developer guide and repository breakdown
