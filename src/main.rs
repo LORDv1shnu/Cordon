@@ -261,6 +261,32 @@ fn main() {
         },
 
         Commands::Syscalls { preset } => commands::syscalls::run_syscalls(preset),
+
+        Commands::Lock { action } => match action {
+            cli::LockCommands::Update { profile } => (|| -> anyhow::Result<()> {
+                let opts = sandbox::executor::SandboxOptions {
+                    cmd: vec!["true".to_string()], // dummy command for resolution
+                    net: sandbox::network::NetworkMode::Disable,
+                    domains: vec![],
+                    dry_run: true,
+                    gui: false,
+                    optional: vec![],
+                    profile,
+                    trace: false,
+                    quiet: true,
+                    verbose: false,
+                    net_is_explicit: false,
+                    mem: None,
+                    cpu: None,
+                    pid_limit: None,
+                    timeout: None,
+                    seccomp: None,
+                };
+                let (_, _, _, _, paths) = sandbox::executor::resolve_effective_flags(opts)?;
+                commands::lock::run_lock_update(paths)
+            })(),
+            cli::LockCommands::Verify => commands::lock::run_lock_verify(),
+        },
     };
 
     if let Err(e) = result {

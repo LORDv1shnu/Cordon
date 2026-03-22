@@ -216,6 +216,12 @@ pub enum Commands {
     /// Suggests exact fix commands for each detected problem.
     Doctor,
 
+    /// Manage the cordon.lock file for reproducible sandbox environments.
+    Lock {
+        #[command(subcommand)]
+        action: LockCommands,
+    },
+
     /// Manage reusable named sandbox profiles stored in ~/.config/cordon/profiles.toml.
     Profile {
         #[command(subcommand)]
@@ -254,4 +260,16 @@ pub enum ProfileCommands {
     Delete { name: String },
     /// Show a single profile's fields.
     Show { name: String },
+}
+
+#[derive(Subcommand)]
+pub enum LockCommands {
+    /// Update the cordon.lock file with current SHA-256 hashes of all mounts.
+    Update {
+        /// Optional named profile to lock (otherwise uses project default).
+        #[arg(long, value_name = "NAME")]
+        profile: Option<String>,
+    },
+    /// Verify that current mount paths match the hashes in cordon.lock.
+    Verify,
 }

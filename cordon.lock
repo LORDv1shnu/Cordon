@@ -1,0 +1,13 @@
+cordon_version = "0.1.0"
+timestamp = "2026-03-22T13:47:54.507882878+05:30"
+project_root = "/home/alvi/Documents/foss/Cordon"
+
+[mounts]
+"/etc/ssl" = "dir:4096:1770682907"
+"/etc/nsswitch.conf" = "f053e77f9d706a20cb52deecdf9602b1635ea64a3be77a4cb32205bfebb17d3e"
+"/etc/hosts" = "8fc57a7ca1c4d5564b0483e6ac537bb60b955bf82c8fa36764486bae6e0e54c9"
+"/etc/resolv.conf" = "ebdf560272a77357195c39e98340b77e18c8a8ce2025ee950e9e0c7b01467ab8"
+"/home/alvi/Documents/foss/Cordon/src" = "dir:4096:1774092106"
+"/etc/hostname" = "a2bbdb2de53523b8099b37013f251546f3d65dbe7a0774fa41af0a4176992fd4"
+"/etc/pki" = "dir:4096:1770683280"
+"/home/alvi/Documents/foss/Cordon" = "dir:4096:1774167454"

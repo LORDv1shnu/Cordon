@@ -10,7 +10,7 @@ use tracing::{error, info, warn};
 use crate::sandbox::network::NetworkMode;
 use crate::sandbox::proxy::ProxyHandle;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SandboxOptions {
     pub cmd: Vec<String>,
     pub net: NetworkMode,
@@ -31,84 +31,7 @@ pub struct SandboxOptions {
 }
 
 pub fn run_sandboxed(opts: SandboxOptions) -> Result<()> {
-    let mut net = opts.net;
-    let mut gui = opts.gui;
-    let mut optional = opts.optional;
-
-    let SandboxOptions {
-        cmd,
-        domains,
-        dry_run,
-        profile,
-        trace,
-        quiet,
-        verbose,
-        net_is_explicit,
-        mem,
-        cpu,
-        pid_limit,
-        timeout,
-        ..
-    } = opts;
-    let mut seccomp = opts.seccomp;
-
-    if let Some(ref profile_name) = profile {
-        let named = resolve_profile(profile_name)?;
-        if !net_is_explicit && let Some(n) = named.network {
-            net = match n.as_str() {
-                "allow" => NetworkMode::Allow,
-                "full" => NetworkMode::Full,
-                _ => NetworkMode::Disable,
-            };
-        }
-        if !gui {
-            gui = named.gui.unwrap_or(false);
-        }
-        if let Some(opts) = named.optional {
-            for opt in opts {
-                if !optional.contains(&opt) {
-                    optional.push(opt);
-                }
-            }
-        }
-        if seccomp.is_none() && let Some(s) = named.seccomp {
-            seccomp = match s.as_str() {
-                "basic" => Some(crate::sandbox::seccomp::SeccompPreset::Basic),
-                "strict" => Some(crate::sandbox::seccomp::SeccompPreset::Strict),
-                "none" => Some(crate::sandbox::seccomp::SeccompPreset::None),
-                _ => None,
-            };
-        }
-    }
-
-    if let Ok(Some(cfg)) = crate::config::find_user_config() {
-        if !net_is_explicit && let Some(n) = cfg.network {
-            net = match n.as_str() {
-                "allow" => NetworkMode::Allow,
-                "full" => NetworkMode::Full,
-                _ => NetworkMode::Disable,
-            };
-        }
-        if !gui {
-            gui = cfg.gui.unwrap_or(false);
-        }
-        if let Some(opts) = cfg.optional {
-            for opt in opts {
-                if !optional.contains(&opt) {
-                    optional.push(opt);
-                }
-            }
-        }
-        if seccomp.is_none() && let Some(s) = cfg.seccomp {
-            seccomp = match s.as_str() {
-                "basic" => Some(crate::sandbox::seccomp::SeccompPreset::Basic),
-                "strict" => Some(crate::sandbox::seccomp::SeccompPreset::Strict),
-                "none" => Some(crate::sandbox::seccomp::SeccompPreset::None),
-                _ => None,
-            };
-        }
-    }
-
+    // ── Check Prerequisites ──────────────────────────────────────────────────
     if std::process::Command::new("bwrap")
         .arg("--version")
         .output()
@@ -121,6 +44,29 @@ pub fn run_sandboxed(opts: SandboxOptions) -> Result<()> {
         ).into());
     }
 
+    // ── Resolve Effective Configuration ──────────────────────────────────────
+    let (net, gui, optional, seccomp, _resolved_paths) = resolve_effective_flags(opts.clone())?;
+
+    let SandboxOptions {
+        cmd,
+        domains,
+        dry_run,
+        trace,
+        quiet,
+        verbose,
+        mem,
+        cpu,
+        pid_limit,
+        timeout,
+        ..
+    } = opts;
+
+    if !dry_run && Path::new("cordon.lock").exists() {
+        if let Err(e) = crate::commands::lock::run_lock_verify() {
+            warn!("Lockfile verification failed: {}. Your system may have changed since the lock was created.", e);
+        }
+    }
+
     if !quiet {
         info!("Running inside sandbox...");
     }
@@ -130,8 +76,10 @@ pub fn run_sandboxed(opts: SandboxOptions) -> Result<()> {
     let src_dir = project_dir.join("src");
     let has_src = src_dir.exists() && src_dir.is_dir();
 
-    // Skip integrity check on dry-run if it might fail due to missing sys config
-    let system_config = if dry_run {
+    let mut bwrap = build_bwrap(project_path, net, dry_run);
+
+    // ── Apply Resolved Mounts ───────────────────────────────────────────────
+    let system_config = if dry_run && !Path::new("~/.config/cordon/system.toml").exists() {
         crate::config::SystemConfig {
             last_scan: "".to_string(),
             cordon_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -140,8 +88,6 @@ pub fn run_sandboxed(opts: SandboxOptions) -> Result<()> {
     } else {
         integrity_check(net != NetworkMode::Disable, gui)?
     };
-
-    let mut bwrap = build_bwrap(project_path, net, dry_run);
 
     apply_system_mounts(&mut bwrap, &system_config, net != NetworkMode::Disable, gui, &optional);
     apply_user_mounts(&mut bwrap, dry_run);
@@ -273,6 +219,121 @@ pub fn run_sandboxed(opts: SandboxOptions) -> Result<()> {
 fn is_executable(path: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     std::fs::metadata(path).map(|m| m.permissions().mode() & 0o111 != 0).unwrap_or(false)
+}
+
+pub fn resolve_effective_flags(opts: SandboxOptions) -> Result<(NetworkMode, bool, Vec<String>, Option<crate::sandbox::seccomp::SeccompPreset>, Vec<PathBuf>)> {
+    let mut net = opts.net;
+    let mut gui = opts.gui;
+    let mut optional = opts.optional;
+    let mut seccomp = opts.seccomp;
+    let mut paths = Vec::new();
+
+    // 1. Profile Layer
+    if let Some(ref profile_name) = opts.profile {
+        let named = resolve_profile(profile_name)?;
+        if !opts.net_is_explicit && let Some(n) = named.network {
+            net = match n.as_str() {
+                "allow" => NetworkMode::Allow,
+                "full" => NetworkMode::Full,
+                _ => NetworkMode::Disable,
+            };
+        }
+        if !gui {
+            gui = named.gui.unwrap_or(false);
+        }
+        if let Some(opts) = named.optional {
+            for opt in opts {
+                if !optional.contains(&opt) {
+                    optional.push(opt);
+                }
+            }
+        }
+        if seccomp.is_none() && let Some(s) = named.seccomp {
+            seccomp = match s.as_str() {
+                "basic" => Some(crate::sandbox::seccomp::SeccompPreset::Basic),
+                "strict" => Some(crate::sandbox::seccomp::SeccompPreset::Strict),
+                "none" => Some(crate::sandbox::seccomp::SeccompPreset::None),
+                _ => None,
+            };
+        }
+    }
+
+    // 2. Project Layer (cordon.toml)
+    if let Ok(Some(cfg)) = crate::config::find_user_config() {
+        if !opts.net_is_explicit && let Some(n) = cfg.network {
+            net = match n.as_str() {
+                "allow" => NetworkMode::Allow,
+                "full" => NetworkMode::Full,
+                _ => NetworkMode::Disable,
+            };
+        }
+        if !gui {
+            gui = cfg.gui.unwrap_or(false);
+        }
+        if let Some(opts) = cfg.optional {
+            for opt in opts {
+                if !optional.contains(&opt) {
+                    optional.push(opt);
+                }
+            }
+        }
+        if seccomp.is_none() && let Some(s) = cfg.seccomp {
+            seccomp = match s.as_str() {
+                "basic" => Some(crate::sandbox::seccomp::SeccompPreset::Basic),
+                "strict" => Some(crate::sandbox::seccomp::SeccompPreset::Strict),
+                "none" => Some(crate::sandbox::seccomp::SeccompPreset::None),
+                _ => None,
+            };
+        }
+
+        for m in cfg.mounts {
+            paths.push(PathBuf::from(m.src));
+        }
+    }
+
+    // 3. System Layer (system.toml via integrity_check)
+    // We only collect paths if we're not in a "pure" resolution (like lock update might want)
+    // Actually, lock update DOES want system paths.
+    let system_config = crate::scanner::integrity_check(net != NetworkMode::Disable, gui).unwrap_or(crate::config::SystemConfig {
+        last_scan: "".to_string(),
+        cordon_version: "".to_string(),
+        mounts: vec![],
+    });
+
+    for m in system_config.mounts {
+        let active = match m.when.as_str() {
+            "always" => true,
+            "network" => net != NetworkMode::Disable,
+            "gui" => gui,
+            "optional" => optional.contains(&m.name),
+            _ => false,
+        };
+        if active && m.verified {
+            paths.push(PathBuf::from(m.src));
+        }
+    }
+
+    // 4. Implicit paths
+    let project_dir = std::env::current_dir()?;
+    paths.push(project_dir.clone());
+    let src_dir = project_dir.join("src");
+    if src_dir.exists() {
+        paths.push(src_dir);
+    }
+    
+    if net != NetworkMode::Disable {
+        for p in &["/etc/resolv.conf", "/etc/hosts", "/etc/hostname", "/etc/nsswitch.conf", "/etc/ssl", "/etc/pki"] {
+            let path = Path::new(p);
+            if path.exists() {
+                paths.push(path.to_path_buf());
+            }
+        }
+    }
+
+    paths.sort();
+    paths.dedup();
+
+    Ok((net, gui, optional, seccomp, paths))
 }
 
 fn find_binary(name: &str) -> Option<PathBuf> {
