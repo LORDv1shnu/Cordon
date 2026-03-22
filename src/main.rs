@@ -199,7 +199,7 @@ fn main() {
 
         Commands::Edit {} => config::edit_user_config(),
 
-        Commands::Set { net, gui, optional } => (|| -> anyhow::Result<()> {
+        Commands::Set { net, gui, optional, seccomp } => (|| -> anyhow::Result<()> {
             if let Some(n) = net {
                 let n_str = match n {
                     crate::sandbox::network::NetworkMode::Disable => "disable",
@@ -214,10 +214,18 @@ fn main() {
             if let Some(opt) = optional {
                 config::set_profile_field(config::ProfileField::OptionalAdd(opt))?;
             }
+            if let Some(s) = seccomp {
+                let s_str = match s {
+                    crate::sandbox::seccomp::SeccompPreset::Basic => "basic",
+                    crate::sandbox::seccomp::SeccompPreset::Strict => "strict",
+                    crate::sandbox::seccomp::SeccompPreset::None => "none",
+                };
+                config::set_profile_field(config::ProfileField::Seccomp(s_str.to_string()))?;
+            }
             Ok(())
         })(),
 
-        Commands::Unset { net, gui, optional } => (|| -> anyhow::Result<()> {
+        Commands::Unset { net, gui, optional, seccomp } => (|| -> anyhow::Result<()> {
             if net {
                 config::unset_profile_field(config::ProfileUnsetField::Network)?;
             }
@@ -226,6 +234,9 @@ fn main() {
             }
             if let Some(opt) = optional {
                 config::unset_profile_field(config::ProfileUnsetField::OptionalRemove(opt))?;
+            }
+            if seccomp {
+                config::unset_profile_field(config::ProfileUnsetField::Seccomp)?;
             }
             Ok(())
         })(),
@@ -241,8 +252,8 @@ fn main() {
         Commands::Doctor => commands::doctor::run_doctor(),
 
         Commands::Profile { action } => match action {
-            cli::ProfileCommands::Create { name, net, gui, optional } => {
-                commands::profile::run_create(name, net, gui, optional)
+            cli::ProfileCommands::Create { name, net, gui, optional, seccomp } => {
+                commands::profile::run_create(name, net, gui, optional, seccomp)
             }
             cli::ProfileCommands::List => commands::profile::run_list(),
             cli::ProfileCommands::Delete { name } => commands::profile::run_delete(name),

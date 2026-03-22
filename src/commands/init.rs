@@ -63,6 +63,7 @@ pub fn run_init(yes: bool, force: bool) -> Result<()> {
         network: Some(net.clone()),
         gui: if gui { Some(true) } else { None },
         optional: if opts.is_empty() { None } else { Some(opts.clone()) },
+        seccomp: None,
         mounts: vec![],
     };
 

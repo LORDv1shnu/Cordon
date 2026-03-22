@@ -7,6 +7,7 @@ pub fn run_create(
     net: Option<NetworkMode>,
     gui: bool,
     optional: Vec<String>,
+    seccomp: Option<crate::sandbox::seccomp::SeccompPreset>,
 ) -> Result<()> {
     let mut config = load_profiles()?;
 
@@ -17,6 +18,12 @@ pub fn run_create(
         NetworkMode::Disable => "disable".to_string(),
         NetworkMode::Allow => "allow".to_string(),
         NetworkMode::Full => "full".to_string(),
+    });
+
+    let seccomp_str = seccomp.map(|s| match s {
+        crate::sandbox::seccomp::SeccompPreset::Basic => "basic".to_string(),
+        crate::sandbox::seccomp::SeccompPreset::Strict => "strict".to_string(),
+        crate::sandbox::seccomp::SeccompPreset::None => "none".to_string(),
     });
 
     let optional_vec = if optional.is_empty() {
@@ -32,6 +39,7 @@ pub fn run_create(
         network: net_str,
         gui: gui_opt,
         optional: optional_vec,
+        seccomp: seccomp_str,
     });
 
     save_profiles(&config)?;
@@ -46,18 +54,19 @@ pub fn run_list() -> Result<()> {
         return Ok(());
     }
 
-    println!("{:<16}  {:<10}  {:<6}  OPTIONAL", "NAME", "NET", "GUI");
-    println!("{}", "─".repeat(60));
+    println!("{:<16}  {:<10}  {:<6}  {:<8}  OPTIONAL", "NAME", "NET", "GUI", "SECCOMP");
+    println!("{}", "─".repeat(80));
 
     for p in &config.profiles {
         let net = p.network.as_deref().unwrap_or("—");
         let gui = if p.gui.unwrap_or(false) { "yes" } else { "—" };
+        let seccomp = p.seccomp.as_deref().unwrap_or("—");
         let opt = p
             .optional
             .as_ref()
             .map(|v| v.join(", "))
             .unwrap_or_else(|| "—".to_string());
-        println!("{:<16}  {:<10}  {:<6}  {}", p.name, net, gui, opt);
+        println!("{:<16}  {:<10}  {:<6}  {:<8}  {}", p.name, net, gui, seccomp, opt);
     }
     Ok(())
 }
@@ -94,18 +103,21 @@ pub fn run_show(name: String) -> Result<()> {
             network: Some("allow".to_string()),
             gui: None,
             optional: Some(vec!["ld_so_cache".to_string(), "locale_files".to_string()]),
+            seccomp: None,
         }),
         "node" => Some(NamedProfile {
             name: "node".to_string(),
             network: Some("allow".to_string()),
             gui: None,
             optional: Some(vec!["ld_so_cache".to_string(), "home_config".to_string()]),
+            seccomp: None,
         }),
         "rust" => Some(NamedProfile {
             name: "rust".to_string(),
             network: Some("allow".to_string()),
             gui: None,
             optional: Some(vec!["ld_so_cache".to_string()]),
+            seccomp: None,
         }),
         "gui-app" => Some(NamedProfile {
             name: "gui-app".to_string(),
@@ -116,6 +128,7 @@ pub fn run_show(name: String) -> Result<()> {
                 "dbus_session".to_string(),
                 "gpu_dri".to_string(),
             ]),
+            seccomp: None,
         }),
         _ => None,
     };

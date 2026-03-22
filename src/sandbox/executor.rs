@@ -48,9 +48,9 @@ pub fn run_sandboxed(opts: SandboxOptions) -> Result<()> {
         cpu,
         pid_limit,
         timeout,
-        seccomp,
-        .. 
+        ..
     } = opts;
+    let mut seccomp = opts.seccomp;
 
     if let Some(ref profile_name) = profile {
         let named = resolve_profile(profile_name)?;
@@ -71,6 +71,14 @@ pub fn run_sandboxed(opts: SandboxOptions) -> Result<()> {
                 }
             }
         }
+        if seccomp.is_none() && let Some(s) = named.seccomp {
+            seccomp = match s.as_str() {
+                "basic" => Some(crate::sandbox::seccomp::SeccompPreset::Basic),
+                "strict" => Some(crate::sandbox::seccomp::SeccompPreset::Strict),
+                "none" => Some(crate::sandbox::seccomp::SeccompPreset::None),
+                _ => None,
+            };
+        }
     }
 
     if let Ok(Some(cfg)) = crate::config::find_user_config() {
@@ -90,6 +98,14 @@ pub fn run_sandboxed(opts: SandboxOptions) -> Result<()> {
                     optional.push(opt);
                 }
             }
+        }
+        if seccomp.is_none() && let Some(s) = cfg.seccomp {
+            seccomp = match s.as_str() {
+                "basic" => Some(crate::sandbox::seccomp::SeccompPreset::Basic),
+                "strict" => Some(crate::sandbox::seccomp::SeccompPreset::Strict),
+                "none" => Some(crate::sandbox::seccomp::SeccompPreset::None),
+                _ => None,
+            };
         }
     }
 
@@ -286,24 +302,28 @@ fn resolve_profile(name: &str) -> Result<crate::config::NamedProfile> {
             network: Some("allow".to_string()),
             gui: None,
             optional: Some(vec!["ld_so_cache".to_string(), "locale_files".to_string()]),
+            seccomp: None,
         }),
         "node" => Some(crate::config::NamedProfile {
             name: "node".to_string(),
             network: Some("allow".to_string()),
             gui: None,
             optional: Some(vec!["ld_so_cache".to_string(), "home_config".to_string()]),
+            seccomp: None,
         }),
         "rust" => Some(crate::config::NamedProfile {
             name: "rust".to_string(),
             network: Some("allow".to_string()),
             gui: None,
             optional: Some(vec!["ld_so_cache".to_string()]),
+            seccomp: None,
         }),
         "gui-app" => Some(crate::config::NamedProfile {
             name: "gui-app".to_string(),
             network: None,
             gui: Some(true),
             optional: Some(vec!["audio_pipewire".to_string(), "dbus_session".to_string(), "gpu_dri".to_string()]),
+            seccomp: None,
         }),
         _ => None,
     };

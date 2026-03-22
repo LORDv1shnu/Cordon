@@ -161,6 +161,10 @@ pub enum Commands {
         /// Add an optional module to the default profile.
         #[arg(long, value_name = "MODULE")]
         optional: Option<String>,
+
+        /// Set a default seccomp preset (basic, strict, none).
+        #[arg(long, value_name = "PRESET")]
+        seccomp: Option<crate::sandbox::seccomp::SeccompPreset>,
     },
 
     /// Unset a default profile field in the per-project cordon.toml.
@@ -177,6 +181,10 @@ pub enum Commands {
         /// Remove an optional module from the default profile.
         #[arg(long, value_name = "MODULE")]
         optional: Option<String>,
+
+        /// Remove seccomp preset from defaults.
+        #[arg(long)]
+        seccomp: bool,
     },
 
     /// Check that the sandbox is ready to run: bwrap, namespaces, AppArmor, and modules.
@@ -236,6 +244,9 @@ pub enum ProfileCommands {
         /// Add an optional module to the profile.
         #[arg(long, value_name = "MODULE")]
         optional: Vec<String>,
+        /// Seccomp preset (basic, strict, none).
+        #[arg(long, value_name = "PRESET")]
+        seccomp: Option<crate::sandbox::seccomp::SeccompPreset>,
     },
     /// List all saved profiles in a table.
     List,

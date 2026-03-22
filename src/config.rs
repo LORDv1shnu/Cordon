@@ -66,6 +66,7 @@ pub struct UserConfig {
     pub network: Option<String>,
     pub gui: Option<bool>,
     pub optional: Option<Vec<String>>,
+    pub seccomp: Option<String>,
 }
 
 /// A single user-defined mount entry from cordon.toml.
@@ -85,6 +86,7 @@ pub struct NamedProfile {
     pub network: Option<String>,
     pub gui: Option<bool>,
     pub optional: Option<Vec<String>>,
+    pub seccomp: Option<String>,
 }
 
 /// Top-level structure of profiles.toml.
@@ -301,6 +303,7 @@ pub enum ProfileField {
     Network(String),
     Gui(bool),
     OptionalAdd(String),
+    Seccomp(String),
 }
 
 /// Sets a profile field in cordon.toml, creating the file if it doesn't exist.
@@ -321,6 +324,9 @@ pub fn set_profile_field(field: ProfileField) -> Result<()> {
             }
             config.optional = Some(opts);
         }
+        ProfileField::Seccomp(preset) => {
+            config.seccomp = Some(preset);
+        }
     }
 
     let content = toml::to_string_pretty(&config).context("Failed to serialise cordon.toml")?;
@@ -334,6 +340,7 @@ pub enum ProfileUnsetField {
     Network,
     Gui,
     OptionalRemove(String),
+    Seccomp,
 }
 
 /// Unsets a profile field in cordon.toml if it exists.
@@ -362,6 +369,9 @@ pub fn unset_profile_field(field: ProfileUnsetField) -> Result<()> {
                     config.optional = Some(opts);
                 }
             }
+        }
+        ProfileUnsetField::Seccomp => {
+            config.seccomp = None;
         }
     }
 
