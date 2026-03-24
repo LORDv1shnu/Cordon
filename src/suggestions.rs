@@ -22,6 +22,10 @@ pub const KNOWN_COMMANDS: &[&str] = &[
     "log",
     "init",
     "doctor",
+    "completions",
+    "wrap",
+    "unwrap",
+    "man",
 ];
 
 /// Per-command usage synopsis printed when a required argument is missing.
@@ -43,6 +47,10 @@ pub fn command_synopsis(cmd: &str) -> Option<&'static str> {
         "log"    => Some("cordon log [--last <N>] [--errors]"),
         "init"   => Some("cordon init [--yes] [--force]  — scaffold a default cordon.toml"),
         "doctor" => Some("cordon doctor  — deep diagnostic report with fix suggestions"),
+        "completions" => Some("cordon completions <bash|zsh|fish|powershell|elvish>"),
+        "wrap" => Some("cordon wrap <cmd> [--show]"),
+        "unwrap" => Some("cordon unwrap <cmd>"),
+        "man" => Some("cordon man"),
         _        => None,
     }
 }

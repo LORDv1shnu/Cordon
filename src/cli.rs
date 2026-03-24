@@ -247,6 +247,31 @@ pub enum Commands {
         #[arg(long, value_name = "PRESET")]
         preset: Option<crate::sandbox::seccomp::SeccompPreset>,
     },
+
+    /// Generate shell completions for the cordon command.
+    Completions {
+        /// The shell to generate completions for (bash, zsh, fish, powershell, elvish).
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
+
+    /// Create a tiny shell wrapper script in ~/.local/bin/<cmd> that calls cordon.
+    Wrap {
+        /// The command to wrap (e.g. node, pip, python).
+        cmd: String,
+        /// Show the wrapper script instead of creating it.
+        #[arg(long)]
+        show: bool,
+    },
+
+    /// Remove a shell wrapper script from ~/.local/bin/<cmd>.
+    Unwrap {
+        /// The command to unwrap.
+        cmd: String,
+    },
+
+    /// Generate the man page for cordon and print it to stdout.
+    Man,
 }
 
 #[derive(Subcommand)]

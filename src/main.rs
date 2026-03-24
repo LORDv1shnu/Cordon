@@ -1,3 +1,4 @@
+use anyhow::Context;
 use clap::{Parser, error::ErrorKind};
 
 /// Cordon exit codes
@@ -45,6 +46,9 @@ mod commands;
 
 // Smart "did you mean?" suggestions and usage hints
 mod suggestions;
+
+// Shell wrapper script management
+mod wrapper;
 
 use cli::{Cli, Commands};
 use errors::CordonError;
@@ -114,6 +118,7 @@ fn main() {
         }
     };
 
+    let is_run = matches!(&cli.command, Commands::Run { .. });
     let is_quiet = matches!(&cli.command, Commands::Run { quiet: true, .. });
 
     let result: anyhow::Result<()> = match cli.command {
@@ -290,6 +295,25 @@ fn main() {
 
         Commands::Export { profile } => commands::spec::run_export(profile),
         Commands::Import { file } => commands::spec::run_import(file),
+
+        Commands::Completions { shell } => {
+            use clap::CommandFactory;
+            let mut cmd = Cli::command();
+            let bin_name = cmd.get_name().to_string();
+            clap_complete::generate(shell, &mut cmd, bin_name, &mut std::io::stdout());
+            Ok(())
+        }
+
+        Commands::Wrap { cmd, show } => wrapper::wrap(&cmd, show),
+
+        Commands::Unwrap { cmd } => wrapper::unwrap(&cmd),
+
+        Commands::Man => {
+            use clap::CommandFactory;
+            let cmd = Cli::command();
+            let man = clap_mangen::Man::new(cmd);
+            man.render(&mut std::io::stdout()).context("failed to render man page")
+        }
     };
 
     if let Err(e) = result {
@@ -314,7 +338,7 @@ fn main() {
         // Fall back to plain error rendering for non-CordonError anyhow errors.
         eprintln!("error: {e:#}");
         std::process::exit(exit_codes::INTERNAL_ERROR);
-    } else if !is_quiet {
+    } else if is_run && !is_quiet {
         eprintln!("\x1b[90m[CORDON] sandbox exited cleanly — cage destroyed\x1b[0m");
     }
 }
