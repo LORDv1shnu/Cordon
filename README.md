@@ -149,6 +149,16 @@ cordon set --net=allow --gui --optional audio_pipewire
 
 # Unset profile defaults from cordon.toml
 cordon unset --net --gui --optional audio_pipewire
+
+# Generate shell completions (bash, zsh, fish, powershell, elvish)
+cordon completions zsh
+
+# Create/remove transparent shell wrappers for sandboxed commands
+cordon wrap node
+cordon unwrap node
+
+# Generate the cordon.1 man page
+cordon man
 ```
 
 > Full flags, examples, and planned commands: **[COMMANDS.md](COMMANDS.md)**
@@ -211,6 +221,8 @@ Cordon/
 │   ├── errors.rs           # CordonError typed enum (thiserror)
 │   ├── logger.rs           # Dual-sink tracing logger (stderr + log file)
 │   ├── suggestions.rs      # Smart "did you mean?" suggestions & synopses
+│   ├── distro.rs           # Distro detection (NixOS, Standard)
+│   ├── wrapper.rs          # Shell wrapper script management (~/.local/bin)
 │   ├── commands/           # Standalone subcommand implementations
 │   │   ├── check.rs        # cordon check
 │   │   ├── list.rs         # cordon list

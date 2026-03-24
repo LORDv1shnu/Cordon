@@ -755,6 +755,7 @@ WORKSPACE="$(fresh_workspace v23)"
 # 23.1 completions
 run_cordon rc out err completions bash
 assert_exit         "completions bash exits 0" 0 $rc
+[[ ${#out} -gt 1000 ]] && pass "completions bash output size ok (${#out} bytes)" || fail "completions bash output too small (${#out} bytes)"
 assert_contains     "completions output contains cordon" "cordon" "$out"
 
 # 23.2 wrap --show
