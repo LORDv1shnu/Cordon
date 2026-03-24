@@ -21,6 +21,7 @@ Cordon/
 │   ├── logger.rs           # Dual-sink tracing logger (stderr + log file)
 │   ├── suggestions.rs      # Smart "did you mean?" suggestions & synopses
 │   ├── distro.rs           # Distro detection (NixOS, Standard)
+│   ├── wrapper.rs          # Shell wrapper script management (~/.local/bin)
 │   ├── commands/           # Standalone subcommand implementations
 │   │   ├── check.rs        # cordon check
 │   │   ├── list.rs         # cordon list
@@ -95,7 +96,7 @@ Parses CLI via clap, then dispatches to the right module. If you add a new subco
 
 **Smart error handling** using Levenshtein distance.
 
-- `KNOWN_COMMANDS` — list of all implemented subcommand names.
+- `KNOWN_COMMANDS` — list of all implemented subcommand names (now including `completions`, `wrap`, `unwrap`, `man`).
 - `command_synopsis()` — returns a one-line usage string for each command.
 - `closest_command()` — finds the best match for a typo within 3 edits.
 - `print_unknown_command_error()` / `print_missing_arg_error()` — formatted, actionable error printers.
@@ -107,7 +108,7 @@ Parses CLI via clap, then dispatches to the right module. If you add a new subco
 **Argument structs only.** No logic lives here.
 
 - `Cli` is the top-level clap `Parser`.
-- `Commands` is the `Subcommand` enum: `Run { ... }`, `Scan { ... }`, `Add { ... }`, `Remove { ... }`, `Edit {}`, `Set { ... }`, `Unset { ... }`, `Check`, `List`, `Status`, `Profile { ... }`, `Log { ... }`, `Init { ... }`, `Doctor`.
+- `Commands` is the `Subcommand` enum: `Run { ... }`, `Scan { ... }`, `Add { ... }`, `Remove { ... }`, `Edit {}`, `Set { ... }`, `Unset { ... }`, `Check`, `List`, `Status`, `Profile { ... }`, `Log { ... }`, `Init { ... }`, `Doctor`, `Completions { ... }`, `Wrap { ... }`, `Unwrap { ... }`, `Man`.
 - `Run` has: `cmd`, `net`, `domains`, `dry_run`, `gui`, `optional`, `debug`, `quiet`, `verbose`, `mem`, `cpu`, `pid-limit`, `timeout`, `seccomp`.
 - `#[arg(last = true)]` on `cmd` is what makes `cordon run -- <cmd>` work.
 

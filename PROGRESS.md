@@ -228,9 +228,14 @@ Adding a seccomp filter layer makes cordon a genuinely layered sandbox:
 
 ---
 
-### Phase 6 — Shell & Editor Integration `[PLANNED]`
+### Phase 6 — Shell & Editor Integration ✅
 
-### Phase 6 — Shell & Editor Integration `[PLANNED]`
+| Feature | Notes |
+|---------|-------|
+| `cordon completions <shell>` | Generates bash/zsh/fish/powershell/elvish completions |
+| `cordon wrap <cmd>` | Created `~/.local/bin/<cmd>` shell wrappers |
+| `cordon unwrap <cmd>` | Removes wrappers from `~/.local/bin` |
+| `cordon man` | Generates `cordon.1` man page via `clap_mangen` |
 
 **Shell Completions**
 - `cordon completions bash` / `zsh` / `fish` — generate and print shell completion scripts.

@@ -746,6 +746,42 @@ assert_exit         "cordon import exits 0" 0 $rc
 assert_file_exists  "$WORKSPACE/cordon.toml" "cordon.toml restored by import"
 assert_file_contains "$WORKSPACE/cordon.toml" "/tmp" "imported config contains mounts"
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  §23 — Phase 6: Shell & Editor Integration
+# ─────────────────────────────────────────────────────────────────────────────
+section "23. Phase 6: Shell & Editor Integration"
+WORKSPACE="$(fresh_workspace v23)"
+
+# 23.1 completions
+run_cordon rc out err completions bash
+assert_exit         "completions bash exits 0" 0 $rc
+assert_contains     "completions output contains cordon" "cordon" "$out"
+
+# 23.2 wrap --show
+run_cordon rc out err wrap ls --show
+assert_exit         "wrap --show exits 0" 0 $rc
+assert_contains     "wrap output contains exec cordon run" "exec cordon run -- ls" "$out"
+
+# 23.3 wrap / unwrap
+# run_cordon sets HOME=MOCK_HOME, so we use that.
+# fresh_workspace already creates a clean environment.
+MOCK_HOME_TEST="$WORKSPACE/fake_home"
+mkdir -p "$MOCK_HOME_TEST/.local/bin"
+
+MOCK_HOME="$MOCK_HOME_TEST" run_cordon rc out err wrap ls
+assert_exit         "wrap ls exits 0" 0 $rc
+assert_file_exists  "$MOCK_HOME_TEST/.local/bin/ls" "wrapper script created"
+assert_file_contains "$MOCK_HOME_TEST/.local/bin/ls" "exec cordon run -- ls" "wrapper script content"
+
+MOCK_HOME="$MOCK_HOME_TEST" run_cordon rc out err unwrap ls
+assert_exit         "unwrap ls exits 0" 0 $rc
+[[ ! -f "$MOCK_HOME_TEST/.local/bin/ls" ]] && pass "unwrap ls removes script" || fail "unwrap ls did not remove script"
+
+# 23.4 man
+run_cordon rc out err man
+assert_exit         "man exits 0" 0 $rc
+assert_contains     "man output contains sandbox" "sandbox" "$out"
+
 if [[ ${#FAILURES[@]} -gt 0 ]]; then
     echo
     printf "  ${RED}${BOLD}Failed tests:${RESET}\n"

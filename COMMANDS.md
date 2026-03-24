@@ -402,30 +402,102 @@ Runs a deep diagnostic check of the sandbox environment: kernel version, bwrap a
 
 ---
 
+---
+
+## `cordon completions` — Generate shell completions
+
+```
+cordon completions <shell>
+```
+
+Status: `[IMPLEMENTED — Phase 6]`
+
+Generates shell completion scripts for the `cordon` command and prints them to stdout.
+
+| Shell | Description |
+|-------|-------------|
+| `bash` | Bourne Again SHell |
+| `zsh` | Z Shell |
+| `fish` | Friendly Interactive SHell |
+| `powershell` | Microsoft PowerShell |
+| `elvish` | Elvish Shell |
+
+### Example
+
+```bash
+# Generate zsh completions and save to a file
+cordon completions zsh > ~/.zfunc/_cordon
+```
+
+---
+
+## `cordon wrap` — Create shell wrappers
+
+```
+cordon wrap <cmd> [--show]
+```
+
+Status: `[IMPLEMENTED — Phase 6]`
+
+Creates a tiny shell wrapper script in `~/.local/bin/<cmd>` that calls `cordon run -- <cmd> "$@"`. This allows you to transparently sandbox any tool without changing your workflow.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--show` | `false` | Print the wrapper script to stdout instead of creating it |
+
+### Example
+
+```bash
+# Wrap node so it always runs sandboxed
+cordon wrap node
+
+# Now 'node' calls 'cordon run -- node'
+node --version
+```
+
+---
+
+## `cordon unwrap` — Remove shell wrappers
+
+```
+cordon unwrap <cmd>
+```
+
+Status: `[IMPLEMENTED — Phase 6]`
+
+Removes a shell wrapper script from `~/.local/bin/<cmd>`.
+
+---
+
+## `cordon man` — Generate man page
+
+```
+cordon man
+```
+
+Status: `[IMPLEMENTED — Phase 6]`
+
+Generates the `cordon.1` man page from the CLI definition and prints it to stdout.
+
+### Example
+
+```bash
+# View the man page directly
+cordon man | man -l -
+
+# Install the man page
+cordon man > ~/.local/share/man/man1/cordon.1
+```
+
+---
+
 # Planned Future Commands
 
 ---
 
-## Phase 5 — TUI
+## Phase 7 — TUI
 
-Status: `[PLANNED — Phase 5]`
-
-- Directory picker for mounts
-- Toggle network / gui / dry-run visually
-- View mounts before running
-- Edit `cordon.toml` entries via TUI
-
----
-
-## Phase 6 — Shell & Editor Integration
-
-Status: `[PLANNED — Phase 6]`
-
-- Shell completions (bash, zsh, fish)
-- `cordon wrap <cmd>` script generation
-- Man page generation
-
----
+Status: `[PLANNED — Phase 7]`
 
 ---
 
