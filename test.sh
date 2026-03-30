@@ -24,7 +24,7 @@
 # Do NOT use set -e — we explicitly capture exit codes from every command.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BINARY="$SCRIPT_DIR/target/debug/Cordon"
+BINARY="$SCRIPT_DIR/target/debug/cordon"
 
 # ── Colours ────────────────────────────────────────────────────────────────────
 RED='\033[1;31m'; GREEN='\033[1;32m'; YELLOW='\033[1;33m'
@@ -752,11 +752,19 @@ assert_file_contains "$WORKSPACE/cordon.toml" "/tmp" "imported config contains m
 section "23. Phase 6: Shell & Editor Integration"
 WORKSPACE="$(fresh_workspace v23)"
 
-# 23.1 completions
-run_cordon rc out err completions bash
-assert_exit         "completions bash exits 0" 0 $rc
-[[ ${#out} -gt 1000 ]] && pass "completions bash output size ok (${#out} bytes)" || fail "completions bash output too small (${#out} bytes)"
-assert_contains     "completions output contains cordon" "cordon" "$out"
+# 23.1 completions — write to a temp file to avoid large-string arg truncation in bash
+_comp_out="$(mktemp)"
+(cd "$WORKSPACE" && HOME="$MOCK_HOME" timeout 10 "$BINARY" completions bash > "$_comp_out" 2>/dev/null)
+_comp_rc=$?
+assert_exit "completions bash exits 0" 0 $_comp_rc
+_comp_size=$(wc -c < "$_comp_out")
+[[ $_comp_size -gt 1000 ]] && pass "completions bash output size ok (${_comp_size} bytes)" || fail "completions bash output too small (${_comp_size} bytes)"
+if grep -qF "cordon" "$_comp_out"; then
+    pass "completions output contains cordon"
+else
+    fail "completions output does not contain 'cordon'"
+fi
+rm -f "$_comp_out"
 
 # 23.2 wrap --show
 run_cordon rc out err wrap ls --show
