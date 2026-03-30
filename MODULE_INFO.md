@@ -10,7 +10,11 @@
 
 ```
 Cordon/
-├── Cargo.toml              # Rust manifest + dependencies
+├── Cargo.toml              # Rust manifest + dependencies (name=cordon, v1.0.0)
+├── install.sh              # One-liner install script (build + ~/.local/bin)
+├── .github/
+│   └── workflows/
+│       └── ci.yml          # GitHub Actions CI pipeline
 ├── config/
 │   └── core.toml           # Module blueprint (compiled into binary)
 ├── src/
@@ -45,15 +49,15 @@ Cordon/
 │       ├── executor.rs     # Orchestrates the full cordon run flow
 │       ├── mounts.rs       # Applies system + user mounts to bwrap command
 │       ├── network.rs      # NetworkMode enum
-│       ├── proxy.rs        # Native Rust domain-filtering HTTP/HTTPS proxy
-│       ├── seccomp.rs      # Seccomp BPF filter generation
+│       ├── proxy.rs        # Native Rust domain-filtering HTTP/HTTPS proxy (supply chain safety)
+│       ├── seccomp.rs      # Seccomp BPF filter — blocks ptrace, kexec, mount, perf
 │       └── tracer.rs       # Wrap bwrap with strace to detect denied paths
 ├── COMMANDS.md             # Full command reference & future plans
 ├── MODULE_INFO.md          # ← you are here
 ├── PROGRESS.md             # All completed and planned work
 ├── README.md               # User-facing docs
 ├── SCANNER_LOGIC.md        # Internal scanner design and architecture
-├── test.sh                 # CLI regression test suite
+├── test.sh                 # CLI regression test suite (143 tests)
 ```
 
 ---

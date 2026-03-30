@@ -1,4 +1,4 @@
-# Cordon — Progress Tracking
+# Cordon — Progress Tracking  (v1.0.0)
 
 > **Reading order:** [README.md](README.md) → [COMMANDS.md](COMMANDS.md) → [SCANNER_LOGIC.md](SCANNER_LOGIC.md) → [MODULE_INFO.md](MODULE_INFO.md) → **PROGRESS.md**
 >
@@ -258,7 +258,9 @@ Adding a seccomp filter layer makes cordon a genuinely layered sandbox:
 
 ---
 
-### Phase 7 — TUI `[PLANNED]`
+### Phase 7 — TUI `[DEFERRED]`
+
+> Skipped for hackathon submission — may be implemented in a future version.
 
 A lightweight terminal UI for interactive sandbox configuration (using `ratatui`).
 
@@ -271,25 +273,26 @@ A lightweight terminal UI for interactive sandbox configuration (using `ratatui`
 
 ---
 
-### Phase 8 — Distribution & CI `[PLANNED]`
+### Phase 8 — Distribution & CI
 
-**GitHub Actions CI**
-- `cargo build --release` on `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`.
-- Run `test.sh` (the CLI regression suite) in CI on every PR.
-- Run `cargo test` (unit tests) in CI.
-- Lint: `cargo clippy -- -D warnings`.
+**GitHub Actions CI ✅**
+- `cargo build` + `cargo test` + `cargo clippy -- -D warnings` on every push/PR.
+- Run `test.sh` CLI regression suite in CI on every PR.
+- Release build artifact upload (`cordon-linux-x86_64`) on CI pass.
 
-**Prebuilt Binary Releases**
+**Install Script ✅**
+- `install.sh` — builds release binary, installs to `~/.local/bin/cordon`.
+
+**Prebuilt Binary Releases `[PLANNED]`**
 - GitHub Releases with prebuilt `cordon-linux-x86_64` and `cordon-linux-aarch64` binaries.
 - Install one-liner: `curl -fsSL https://... | sh`.
 - Checksums and signatures (via `minisign` or `cosign`).
 
-**Package Manager**
+**Package Manager `[PLANNED]`**
 - AUR package (`cordon-bin`) for Arch Linux users.
 - Nix flake / `default.nix` for NixOS users.
 - Homebrew tap (Linux only) for cross-distro reach.
 
-**`cordon install` Subcommand**
+**`cordon install` Subcommand `[PLANNED]`**
 - One-time system configuration: writes an AppArmor profile that allows cordon to use user namespaces without restriction.
 - Currently the fix is manual (`sudo sysctl ...`); this should be automated.
-- Example: `sudo cordon install` → writes `/etc/apparmor.d/cordon` and reloads.

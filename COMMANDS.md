@@ -72,17 +72,23 @@ Status: `[IMPLEMENTED — Phase 1]`
 ### Examples
 
 ```bash
-# Run with no network (default)
+# Run with no network (default) — most restrictive
 cordon run -- python3 script.py
 
-# Run with full network
-cordon run --net=full -- npm install
-
-# Run with filtered proxy, only allowing github.com
-cordon run --net=allow --domain github.com -- curl https://github.com
-
-# Run with filtered proxy, domains from proxy.toml + extra
+# Run with filtered proxy — safe for package managers
+# Default allow-list includes registry.npmjs.org, pypi.org, crates.io, github.com
+cordon run --net=allow -- npm install
+cordon run --net=allow -- pip install -r requirements.txt
 cordon run --net=allow -- cargo build
+
+# Run with filtered proxy, add extra domains
+cordon run --net=allow --domain custom.registry.com -- npm install
+
+# Full network (no filtering — use sparingly)
+cordon run --net=full -- curl https://example.com
+
+# Apply syscall filter for deeper protection
+cordon run --seccomp basic --net=allow -- npm install
 
 # Run a GUI app with sound
 cordon run --gui --optional audio_pipewire -- firefox
@@ -91,7 +97,7 @@ cordon run --gui --optional audio_pipewire -- firefox
 cordon run --gui --optional dbus_session --optional gpu_dri -- discord
 
 # Dry-run: inspect the bwrap command without executing
-cordon run --dry-run -- python3 script.py
+cordon run --dry-run -- npm install
 
 # Debug mode: verbose tracing on stderr
 cordon run --debug -- node server.js
