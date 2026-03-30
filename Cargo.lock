@@ -3,30 +3,6 @@
 version = 4
 
 [[package]]
-name = "Cordon"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "clap_complete",
- "clap_mangen",
- "fd-lock",
- "libc",
- "seccompiler",
- "serde",
- "serde_json",
- "sha2",
- "syscallz",
- "tempfile",
- "thiserror 1.0.69",
- "toml",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "aho-corasick"
 version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -220,6 +196,30 @@ name = "colorchoice"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
+
+[[package]]
+name = "cordon"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "clap_complete",
+ "clap_mangen",
+ "fd-lock",
+ "libc",
+ "seccompiler",
+ "serde",
+ "serde_json",
+ "sha2",
+ "syscallz",
+ "tempfile",
+ "thiserror 1.0.69",
+ "toml",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "core-foundation-sys"

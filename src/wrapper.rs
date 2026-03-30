@@ -22,12 +22,12 @@ pub fn wrap(cmd: &str, show: bool) -> Result<()> {
     }
 
     let path = get_wrapper_path(cmd)?;
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            fs::create_dir_all(parent).context("Failed to create .local/bin directory")?;
-            println!("Created directory: {:?}", parent);
-            println!("NOTE: Make sure {:?} is in your PATH.", parent);
-        }
+    if let Some(parent) = path.parent()
+        && !parent.exists()
+    {
+        fs::create_dir_all(parent).context("Failed to create .local/bin directory")?;
+        println!("Created directory: {:?}", parent);
+        println!("NOTE: Make sure {:?} is in your PATH.", parent);
     }
 
     fs::write(&path, script).context(format!("Failed to write wrapper script to {:?}", path))?;

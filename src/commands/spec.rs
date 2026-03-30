@@ -28,25 +28,22 @@ pub fn run_export(profile: Option<String>) -> Result<()> {
     let (net, gui, optional, seccomp, _paths) = crate::sandbox::executor::resolve_effective_flags(opts)?;
 
     // We export as a UserConfig-compatible structure that represents the FULL resolved state
-    let mut export_config = UserConfig::default();
-    export_config.network = Some(match net {
-        crate::sandbox::network::NetworkMode::Disable => "disable".to_string(),
-        crate::sandbox::network::NetworkMode::Allow => "allow".to_string(),
-        crate::sandbox::network::NetworkMode::Full => "full".to_string(),
-    });
-    export_config.gui = Some(gui);
-    export_config.optional = if optional.is_empty() { None } else { Some(optional) };
-    export_config.seccomp = seccomp.map(|s| match s {
-        crate::sandbox::seccomp::SeccompPreset::Basic => "basic".to_string(),
-        crate::sandbox::seccomp::SeccompPreset::Strict => "strict".to_string(),
-        crate::sandbox::seccomp::SeccompPreset::None => "none".to_string(),
-    });
-
-    // We don't export system paths as user mounts (they are handled by system.toml on the target machine),
-    // but we COULD. For now, portable spec means "shared config + explicit user mounts".
-    if let Ok(Some(cfg)) = crate::config::find_user_config() {
-        export_config.mounts = cfg.mounts;
-    }
+    let export_config = crate::config::UserConfig {
+        network: Some(match net {
+            crate::sandbox::network::NetworkMode::Disable => "disable".to_string(),
+            crate::sandbox::network::NetworkMode::Allow => "allow".to_string(),
+            crate::sandbox::network::NetworkMode::Full => "full".to_string(),
+        }),
+        gui: Some(gui),
+        optional: if optional.is_empty() { None } else { Some(optional) },
+        seccomp: seccomp.map(|s| match s {
+            crate::sandbox::seccomp::SeccompPreset::Basic => "basic".to_string(),
+            crate::sandbox::seccomp::SeccompPreset::Strict => "strict".to_string(),
+            crate::sandbox::seccomp::SeccompPreset::None => "none".to_string(),
+        }),
+        // We don't export system paths as user mounts — they are handled by system.toml on the target machine.
+        mounts: if let Ok(Some(cfg)) = crate::config::find_user_config() { cfg.mounts } else { vec![] },
+    };
 
     let json = serde_json::to_string_pretty(&export_config).context("Failed to serialize spec to JSON")?;
     println!("{}", json);

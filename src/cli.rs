@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 /// This module owns nothing except argument structure — no logic lives here.
 #[derive(Parser)]
 #[command(name = "cordon")]
-#[command(version = "0.1.0")] // Added version
+#[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(
     about = "Lightweight filesystem sandbox for Linux",
     long_about = "Cordon is a lightweight, per-execution filesystem sandbox for Linux using bubblewrap. \

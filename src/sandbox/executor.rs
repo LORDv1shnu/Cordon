@@ -10,6 +10,9 @@ use tracing::{error, info, warn};
 use crate::sandbox::network::NetworkMode;
 use crate::sandbox::proxy::ProxyHandle;
 
+/// Return type of `resolve_effective_flags`.
+type ResolvedFlags = (NetworkMode, bool, Vec<String>, Option<crate::sandbox::seccomp::SeccompPreset>, Vec<PathBuf>);
+
 #[derive(Debug, Clone)]
 pub struct SandboxOptions {
     pub cmd: Vec<String>,
@@ -61,10 +64,10 @@ pub fn run_sandboxed(opts: SandboxOptions) -> Result<()> {
         ..
     } = opts;
 
-    if !dry_run && Path::new("cordon.lock").exists() {
-        if let Err(e) = crate::commands::lock::run_lock_verify() {
-            warn!("Lockfile verification failed: {}. Your system may have changed since the lock was created.", e);
-        }
+    if !dry_run && Path::new("cordon.lock").exists()
+        && let Err(e) = crate::commands::lock::run_lock_verify()
+    {
+        warn!("Lockfile verification failed: {}. Your system may have changed since the lock was created.", e);
     }
 
     if !quiet {
@@ -221,7 +224,7 @@ fn is_executable(path: &Path) -> bool {
     std::fs::metadata(path).map(|m| m.permissions().mode() & 0o111 != 0).unwrap_or(false)
 }
 
-pub fn resolve_effective_flags(opts: SandboxOptions) -> Result<(NetworkMode, bool, Vec<String>, Option<crate::sandbox::seccomp::SeccompPreset>, Vec<PathBuf>)> {
+pub fn resolve_effective_flags(opts: SandboxOptions) -> Result<ResolvedFlags> {
     let mut net = opts.net;
     let mut gui = opts.gui;
     let mut optional = opts.optional;

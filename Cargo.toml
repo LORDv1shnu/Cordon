@@ -1,7 +1,11 @@
 [package]
-name = "Cordon"
-version = "0.1.0"
+name = "cordon"
+version = "1.0.0"
 edition = "2024"
+description = "Lightweight per-execution filesystem sandbox for Linux — run npm install, pip install, and untrusted scripts safely"
+repository = "https://github.com/LORDv1shnu/Cordon"
+license = "MIT"
+authors = ["Alvi"]
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
