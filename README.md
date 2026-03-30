@@ -1,343 +1,239 @@
 # Cordon
 
-> Lightweight, per-execution filesystem sandbox for Linux — stop supply chain attacks before they start.
+Cordon runs any command inside a restricted filesystem view on Linux. It uses Linux namespaces (via `bubblewrap`) to hide everything your process doesn't need — your home directory, SSH keys, AWS credentials, everything — while still letting the command do its job.
 
 ```bash
-cordon run --net=allow -- npm install      # safe: npm can only reach npmjs.org
-cordon run --net=allow -- pip install -r requirements.txt  # safe: only pypi.org
-cordon run -- bash suspicious.sh           # no network, no home dir, no secrets
-```
-
----
-
-## The Problem: Supply Chain Attacks
-
-When you run third-party code — `npm install`, `pip install`, random `.sh` scripts, AppImages — those programs run with **your full permissions**. They can:
-
-- Read `~/.ssh/id_rsa`, `~/.aws/credentials`, `~/.gnupg/`
-- Exfiltrate secrets to an attacker's server
-- Modify files anywhere you have write access
-- Phone home in the background while appearing to install packages
-
-This is not hypothetical. Recent real-world attacks:
-
-| Attack | What happened |
-|--------|--------------|
-| **LiteLLM** (2024) | Malicious PyPI package `litellm` exfiltrated SSH keys and env vars on `pip install` |
-| **xz-utils** (2024) | Backdoor injected through the build pipeline — `make` during install was the attack surface |
-| **event-stream** (npm, 2018) | Dependency injected into npm package to steal Bitcoin wallets |
-| **SolarWinds** | Supply chain compromise via a build-time injected update package |
-
-Cordon reduces that risk by limiting what a program can even **see** during execution.
-
----
-
-## How It Works
-
-Cordon uses **Linux namespaces** via `bubblewrap` to create an isolated environment per execution:
-
-- System directories (`/usr`, `/bin`, `/lib`) are mounted **read-only** — the command can run but not write to system paths
-- Your **project directory is writable** — `npm install` still works, `node_modules/` gets created
-- `src/` (if it exists) is protected as **read-only** — source code can't be silently modified
-- `~/.ssh`, `~/.aws`, `~/.gnupg` and your entire home directory are **hidden** — nothing to steal
-- Network is **disabled by default** — or filtered through a domain-allow-list proxy in `--net=allow` mode
-- When the process exits, the sandbox is **gone entirely** — no persistent state
-
-No root. No containers. No system-wide config.
-
-### Defence Against `npm install` Style Attacks
-
-```bash
-# The "node" built-in profile allows only registry.npmjs.org + ld.so.cache
-cordon run --profile node -- npm install
-
-# Or manually:
 cordon run --net=allow -- npm install
-# Proxy allows: registry.npmjs.org, npmjs.org, nodejs.org, github.com
-# Everything else → 403 Forbidden  (even if the package tries to exfiltrate)
+cordon run -- bash setup.sh
+cordon run --profile python -- pip install -r requirements.txt
 ```
 
-The domain-filtering **proxy is built into Cordon** — no external tool needed. It intercepts HTTPS via CONNECT tunneling and checks each target against the allow-list before connecting.
+No root. No containers. No daemons running in the background.
 
-### Seccomp Adds a Kernel-Level Safety Net
+---
+
+## Why?
+
+When you run `npm install` or `pip install`, that code executes with your full user permissions. It can read `~/.ssh/id_rsa`, exfiltrate it to a server, modify files you own — all while appearing to just install a package.
+
+This isn't paranoia. It's happened:
+
+| Attack | What it did |
+|--------|------------|
+| **LiteLLM** (2024) | Malicious PyPI package read SSH keys and env vars on `pip install` |
+| **xz-utils** (2024) | Build-time backdoor injected via the `make` step during install |
+| **event-stream** (npm, 2018) | Compromised npm package silently stole Bitcoin wallets |
+| **SolarWinds** | Supply chain attack through the build/update pipeline |
+
+Cordon's answer: don't let the process see what it shouldn't, even if the code is malicious.
+
+---
+
+## How it works
+
+Each `cordon run` creates a fresh isolated environment:
+
+- `/usr`, `/bin`, `/lib` are mounted **read-only** — things can run, not break the system
+- Your project directory is **writable** — `npm install` creates `node_modules/`, builds work
+- `src/` is **read-only** if it exists — source files can't be silently rewritten
+- `~/.ssh`, `~/.aws`, HOME — **not mounted at all** by default
+- Network is **off** by default, or filtered through a built-in domain-allowlist proxy with `--net=allow`
+
+When the process exits, the sandbox is gone. Nothing persists.
+
+### The proxy
+
+`--net=allow` mode spins up a built-in Rust HTTP/HTTPS proxy on a random localhost port and injects it into the sandbox via env vars (`HTTP_PROXY`, `https_proxy`, `npm_config_proxy`, etc.). It intercepts CONNECT tunnels and checks each domain against an allowlist before forwarding.
+
+Default allowlist includes `registry.npmjs.org`, `pypi.org`, `crates.io`, `github.com`. Anything not on the list gets a 403 — even if the package's postinstall script tries to phone home.
 
 ```bash
-# Block dangerous syscalls (ptrace, kexec, mount, perf_event_open…)
+# Only reaches npmjs.org and its CDNs — nothing else
+cordon run --net=allow -- npm install
+
+# Add a domain for a private registry
+cordon run --net=allow --domain my.internal.registry -- npm install
+```
+
+### Seccomp
+
+Optionally layer in a syscall filter:
+
+```bash
+# Blocks ptrace, kexec_load, mount, perf_event_open, process_vm_*
 cordon run --seccomp basic --net=allow -- npm install
 
-# Strict allow-list: only known-safe syscalls pass through
-cordon run --seccomp strict -- python3 script.py
+# Strict allowlist — only known-safe syscalls
+cordon run --seccomp strict -- python3 untrusted.py
 ```
 
-Even if someone escapes the filesystem restriction, seccomp blocks the syscalls needed to pivot further (e.g. `ptrace` to attach to other processes, `perf_event_open` for side-channel attacks).
+This is a second line of defence. Even if something breaks out of the filesystem restriction, it still can't call `ptrace` to attach to another process or `perf_event_open` for side-channel work.
 
 ---
 
-## Four-Layer Config
-
-| Layer | File | Description |
-|-------|------|-------------|
-| Core | `core.toml` (in binary) | Blueprint of what paths to look for. Immutable at runtime. |
-| System | `~/.config/cordon/system.toml` | Scanner output — verified paths on **this machine**. |
-| Profile | `~/.config/cordon/profiles.toml` | Global reusable sandbox configuration profiles. |
-| Project | `./cordon.toml` | Optional per-project extra mounts and profile defaults. |
-
-bwrap reads paths only from `system.toml` and `cordon.toml`. Neither file is ever exposed inside the sandbox. `core.toml` is compiled into the binary — tamper-proof at runtime.
-
----
-
-## Quick Start
+## Install
 
 ```bash
-# Option 1: Install script (builds release binary)
 git clone https://github.com/LORDv1shnu/Cordon
 cd Cordon
-bash install.sh
+bash install.sh        # builds release binary → ~/.local/bin/cordon
+```
 
-# Option 2: Build manually
+Or manually:
+```bash
 cargo build --release
-cp target/release/cordon ~/.local/bin/cordon
+cp target/release/cordon ~/.local/bin/
 ```
 
-**Requirements:** Rust (via [rustup](https://rustup.rs)) + `bubblewrap`:
-
+You need `bubblewrap` installed:
 ```bash
-# Ubuntu/Debian
-sudo apt install bubblewrap
-
-# Fedora/RHEL
-sudo dnf install bubblewrap
-
-# Arch
-sudo pacman -S bubblewrap
+sudo apt install bubblewrap    # Ubuntu/Debian
+sudo dnf install bubblewrap    # Fedora
+sudo pacman -S bubblewrap      # Arch
 ```
 
+First run after install:
 ```bash
-# First run: interactive system scan (~30 seconds)
-cordon scan
-
-# Run any command sandboxed
-cordon run -- echo "hello from sandbox"
-
-# Safe npm install (blocks exfiltration)
-cordon run --net=allow -- npm install
-
-# Safe pip install
-cordon run --net=allow -- pip install -r requirements.txt
+cordon scan    # scans your system once, takes ~30s, writes ~/.config/cordon/system.toml
+cordon check   # sanity check — makes sure everything's ready
 ```
 
 ---
 
-## CLI Reference
+## Usage
 
 ```bash
-# Run a command (network disabled by default — most restrictive)
-cordon run -- <command>
-
-# Domain-filtered network access (proxy — recommended for package managers)
+# The basics
+cordon run -- echo "hello"
 cordon run --net=allow -- npm install
-cordon run --net=allow --domain custom.registry.com -- npm install
+cordon run --net=allow -- pip install -r requirements.txt
+cordon run --net=full -- curl https://example.com   # unrestricted (no filtering)
 
-# Full unrestricted network access (use only when needed)
-cordon run --net=full -- curl https://example.com
-
-# Apply seccomp syscall filter for extra kernel-level protection
+# Seccomp
 cordon run --seccomp basic --net=allow -- npm install
 
-# Enable GUI app support (X11/Wayland/fonts)
+# GUI apps
 cordon run --gui -- code .
+cordon run --gui --optional audio_pipewire --optional dbus_session -- discord
 
-# Activate optional modules (e.g. audio, dbus)
-cordon run --optional audio_pipewire --optional dbus_session -- discord
+# Built-in profiles (pre-configured for common runtimes)
+cordon run --profile node -- npm install
+cordon run --profile python -- python3 script.py
+cordon run --profile rust -- cargo build
 
-# Dry-run: show the bwrap command without executing it
-cordon run --dry-run -- npm install
+# Debug what's being blocked
+cordon run --trace -- node server.js              # strace wrapper, reports denied paths
+cordon add --from-trace ~/.config/cordon/logs/last-trace.log  # batch-add missing paths
 
-# Debug: verbose tracing output on stderr + log file
-cordon run --debug -- node server.js
-
-# Trace: check what your app was trying to access but was denied
-cordon run --trace -- node server.js
-cordon add --from-trace ~/.config/cordon/logs/last-trace.log
-
-# Resource limits (requires systemd)
+# Resource limits (needs systemd)
 cordon run --mem 512M --cpu 2.0 --timeout 60 -- npm install
 
-# Use built-in profiles (node, python, rust, gui-app)
-cordon run --profile node -- npm install
-cordon run --profile python -- pip install -r requirements.txt
-
-# Health-check: verify bwrap, namespaces, AppArmor, and module readiness
-cordon check
-
-# Deep diagnostic report with suggested fixes
-cordon doctor
-
-# Re-scan the system (after upgrades, new distro, etc.)
-cordon scan
-
-# Show all mounts that would be active in the next sandbox run
-cordon list
-
-# View the log generated by the last sandbox run
-cordon log
-cordon log --last 5
-cordon log --errors
-
-# Manage per-project cordon.toml
-cordon init                   # scaffold from project type auto-detection
-cordon add /path/to/dir --mode rw
-cordon remove /path/to/dir
-cordon edit
-cordon set --net=allow --gui --optional audio_pipewire
-cordon unset --net --gui
-
-# Named sandbox profiles
-cordon profile create myprofile --net=allow --optional ld_so_cache
-cordon profile list
-cordon profile show myprofile
-cordon run --profile myprofile -- node server.js
-
-# Show system.toml contents without scanning
-cordon status
-
-# Reproducible sandbox specs (lockfile)
-cordon lock update
-cordon lock verify
-
-# Export/Import portable sandbox specifications (JSON)
-cordon export > spec.json
-cordon import spec.json
-
-# List syscalls blocked or allowed by each preset
-cordon syscalls --preset basic
-
-# Generate shell completions (bash, zsh, fish, powershell, elvish)
-cordon completions zsh > ~/.zfunc/_cordon
-
-# Create/remove transparent shell wrappers for sandboxed commands
-cordon wrap npm      # now "npm" always runs sandboxed
-cordon wrap pip
-cordon unwrap npm
-
-# Generate the cordon.1 man page
-cordon man
-cordon man > ~/.local/share/man/man1/cordon.1
+# Dry run / verbose
+cordon run --dry-run -- npm install               # print the bwrap command, don't run it
+cordon run --verbose -- npm install               # print each bwrap arg as it runs
 ```
 
-> Full flags, examples, and details: **[COMMANDS.md](COMMANDS.md)**
+### Project setup (`cordon.toml`)
+
+```bash
+cordon init                            # auto-detects Cargo.toml / package.json / pyproject.toml
+cordon set --net=allow                 # persist flags so you don't type them every time
+cordon add /path/to/assets --mode ro   # expose extra paths into the sandbox
+cordon edit                            # open cordon.toml in $EDITOR
+```
+
+### Inspect & debug
+
+```bash
+cordon check               # health check: bwrap, namespaces, AppArmor, modules
+cordon doctor              # deeper: kernel version, distro quirks, exact fix suggestions
+cordon status              # show what's in system.toml right now
+cordon list                # show every mount that would be active on next run
+cordon log --errors        # tail the last run's log, errors only
+cordon syscalls --preset basic   # list what each seccomp preset blocks
+```
+
+### Profiles & portability
+
+```bash
+# Named profiles (stored in ~/.config/cordon/profiles.toml)
+cordon profile create ci-node --net=allow --optional ld_so_cache
+cordon run --profile ci-node -- npm test
+
+# Lockfile for reproducible environments
+cordon lock update          # SHA-256 all mount paths → cordon.lock
+cordon lock verify          # check nothing drifted
+
+# Share sandbox config with the team
+cordon export > sandbox.json
+cordon import sandbox.json
+```
+
+### Shell integration
+
+```bash
+# Tab completions
+cordon completions zsh > ~/.zfunc/_cordon
+
+# Transparent wrappers — make "npm" always run sandboxed
+cordon wrap npm
+cordon wrap pip
+npm install                # actually runs: cordon run -- npm install "$@"
+cordon unwrap npm
+
+# Man page
+cordon man | man -l -
+```
 
 ---
 
-## Exit Codes
+## Configuration layers
+
+There are four config files, applied in order:
+
+| Layer | Where | Who writes it |
+|-------|-------|---------------|
+| `core.toml` | compiled into the binary | not editable at runtime (tamper-proof) |
+| `system.toml` | `~/.config/cordon/` | `cordon scan` |
+| `profiles.toml` | `~/.config/cordon/` | `cordon profile create` |
+| `cordon.toml` | project directory | `cordon init` / `cordon set` / `cordon add` |
+
+CLI flags always win. `cordon.toml` beats a named profile. The binary's built-in `core.toml` can't be touched at runtime.
+
+---
+
+## Exit codes
 
 | Code | Meaning |
 |------|---------|
-| 0 | Success |
-| 1 | Cordon internal error (config, scan, etc.) |
-| 2 | Bad CLI usage |
-| 125 | Sandbox setup failed (bwrap missing, scan error) |
-| 126 | Command found but not executable inside sandbox |
-| 127 | Command not found inside sandbox |
-| N | Any other code — forwarded from the sandboxed process |
+| 0 | success |
+| 1 | cordon internal error |
+| 2 | bad CLI usage |
+| 125 | sandbox setup failed (bwrap missing, etc.) |
+| 126 | command found but not executable inside the sandbox |
+| 127 | command not found inside the sandbox |
+| N | forwarded from the sandboxed process |
 
-Codes 125–127 follow the same convention as `bwrap` and the shell.
-
----
-
-## What Cordon Is NOT
-
-- Not an antivirus or malware scanner
-- Not a container runtime (no images, no daemons, no registry)
-- Not a replacement for SELinux / AppArmor
-- Not a VM
-
-It reduces risk through **filesystem restriction + network allow-listing + syscall filtering**, not detection. Think of it as a mandatory access control wrapper for ad-hoc command execution.
+Same convention as `bwrap` and the shell.
 
 ---
 
-## Tech Stack
+## Limitations
 
-| Crate / Tool | Role |
-|---|---|
-| `bubblewrap` | Linux namespace sandboxing (filesystem isolation) |
-| `clap` | CLI argument parsing |
-| `anyhow` + `thiserror` | Error handling — typed `CordonError` with per-variant messages |
-| `tracing` + `tracing-subscriber` + `tracing-appender` | Structured dual-sink logging (stderr + file) |
-| `seccompiler` | Pure-Rust BPF seccomp filter compilation |
-| `serde` + `toml` + `serde_json` | Config serialisation |
-| `sha2` | SHA-256 for lockfile integrity |
-| `fd-lock` | Write lock on `system.toml` during scans |
-| `chrono` | Timestamps in `system.toml` |
-| `clap_complete` + `clap_mangen` | Shell completions + man page generation |
+Cordon is not a container, not an antivirus, and not a replacement for SELinux or AppArmor. It restricts filesystem visibility and network access — it's not trying to detect malware. If something has a kernel exploit, it'll break out. The goal is to make supply chain attacks significantly harder, not impossible.
+
+Also: currently Linux x86_64 and aarch64 only. `bubblewrap` is required.
 
 ---
 
-## Source Layout
+## Tech
 
-```
-Cordon/
-├── Cargo.toml              # Rust manifest + dependencies
-├── install.sh              # One-liner install script
-├── .github/workflows/ci.yml  # GitHub Actions CI
-├── config/
-│   └── core.toml           # Module blueprint (compiled into binary)
-├── src/
-│   ├── main.rs             # Entry point — routes CLI to modules, nothing else
-│   ├── cli.rs              # Argument structs (clap). No logic.
-│   ├── config.rs           # Data types + file I/O for all three config layers
-│   ├── errors.rs           # CordonError typed enum (thiserror)
-│   ├── logger.rs           # Dual-sink tracing logger (stderr + log file)
-│   ├── suggestions.rs      # Smart "did you mean?" suggestions & synopses
-│   ├── distro.rs           # Distro detection (NixOS, Standard)
-│   ├── wrapper.rs          # Shell wrapper script management (~/.local/bin)
-│   ├── commands/           # Standalone subcommand implementations
-│   │   ├── check.rs        # cordon check
-│   │   ├── list.rs         # cordon list
-│   │   ├── profile.rs      # cordon profile
-│   │   ├── status.rs       # cordon status
-│   │   ├── syscalls.rs     # cordon syscalls
-│   │   ├── log.rs          # cordon log
-│   │   ├── init.rs         # cordon init
-│   │   ├── doctor.rs       # cordon doctor
-│   │   ├── lock.rs         # cordon lock
-│   │   └── spec.rs         # cordon export/import
-│   ├── scanner/            # System scanner — detects paths, writes system.toml
-│   │   ├── mod.rs
-│   │   ├── env_resolver.rs # XDG_RUNTIME_DIR + D-Bus + audio socket resolution
-│   │   ├── full_scan.rs    # Interactive 4-phase scanner
-│   │   ├── integrity.rs    # 7-step pre-flight check
-│   │   └── module_scan.rs  # Per-module scan logic
-│   └── sandbox/            # bwrap invocation — reads config, never writes it
-│       ├── mod.rs
-│       ├── builder.rs      # Base bwrap command + env var passthrough
-│       ├── executor.rs     # Orchestrates the full cordon run flow
-│       ├── mounts.rs       # Applies system + user mounts to bwrap command
-│       ├── network.rs      # NetworkMode enum
-│       ├── proxy.rs        # Native Rust domain-filtering HTTP/HTTPS proxy
-│       ├── seccomp.rs      # Seccomp BPF filter generation
-│       └── tracer.rs       # Wrap bwrap with strace to detect denied paths
-├── COMMANDS.md             # Full command reference
-├── MODULE_INFO.md          # Developer guide and repository breakdown
-├── PROGRESS.md             # What's been built, what's planned
-├── README.md               # This file
-├── SCANNER_LOGIC.md        # Internal scanner design and architecture
-```
+Built in Rust. Uses `bubblewrap` for namespacing, `seccompiler` for BPF filter compilation, `clap` for CLI, `tracing` for structured logging. The domain-filtering proxy is written from scratch in pure Rust (no external proxy tool).
+
+→ [COMMANDS.md](COMMANDS.md) — full flag reference  
+→ [SCANNER_LOGIC.md](SCANNER_LOGIC.md) — how the system scanner works  
+→ [MODULE_INFO.md](MODULE_INFO.md) — every source file explained  
 
 ---
 
-## Further Reading
-
-| Document | What you'll find |
-|----------|--------------------|
-| [COMMANDS.md](COMMANDS.md) | Every flag, all subcommands, network profiles, optional modules |
-| [SCANNER_LOGIC.md](SCANNER_LOGIC.md) | How the scanner and integrity check work internally |
-| [MODULE_INFO.md](MODULE_INFO.md) | Developer guide — every source file explained |
-| [PROGRESS.md](PROGRESS.md) | What's been built, what's planned |
-
----
-
-## AI Usage Note
-
-Built with AI assistance (Gemini) as an implementation accelerator.
-All architecture decisions, security model, and design direction are the author's work.
+*Built with AI assistance (Gemini). Architecture, security model, and design decisions are the author's work.*
