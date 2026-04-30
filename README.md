@@ -1,5 +1,10 @@
 # Cordon
 
+> ### ⚠️ PROJECT DEPRECATED
+> **Development on this project has been stopped** because someone else was working on the same idea and built a better solution. <br> **We highly recommend checking out: [Fence by Use-Tusk](https://github.com/Use-Tusk/fence).**
+> 
+> *Note: This repository was originally created for **FOSS HACK 2026**, though we unfortunately couldn't complete it in time. <br> However, we built a similar project for **Hackathena '26** which won **3rd prize!** <br> **If you're interested, you can find that repository here: [A56-A5/lion](https://github.com/A56-A5/lion).***
+
 Cordon runs any command inside a restricted filesystem view on Linux. It uses Linux namespaces (via `bubblewrap`) to hide everything your process doesn't need — your home directory, SSH keys, AWS credentials, everything — while still letting the command do its job.
 
 ```bash
